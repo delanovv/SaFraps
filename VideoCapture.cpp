@@ -24,7 +24,7 @@ void VideoWriter::logMessage(const std::string& message, LogLevel level) {
     if (!m_bEnableLogging || static_cast<int>(level) > static_cast<int>(m_eCurrentLogLevel)) {
         return;
     }
-    // test
+
     std::ofstream logFile;
     if (isFirstLog) {
         logFile.open("GrandFraps/log.txt", std::ios::out);

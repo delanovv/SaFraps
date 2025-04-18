@@ -1,39 +1,37 @@
-# Prerequisites
-*.d
+# Игнор сборок и IDE
+.vscode/
+.vs/
+*.user
+*.suo
+*.log
 
-# Compiled Object files
-*.slo
-*.lo
-*.o
-*.obj
-
-# Precompiled Headers
-*.gch
-*.pch
-
-# Compiled Dynamic libraries
-*.so
-*.dylib
-*.dll
-
-# Fortran module files
-*.mod
-*.smod
-
-# Compiled Static libraries
-*.lai
-*.la
-*.a
-*.lib
-
-# Executables
+# Build results
+[Bb]in/
+[Oo]bj/
+x64/
+Release/
+Debug/
+*.pdb
 *.exe
-*.out
-*.app
-/SAMP_API_ONE_HEADER/imgui
-/SAMP_API_ONE_HEADER/kthook
-/SAMP_API_ONE_HEADER/memwrapper
-/SAMP_API_ONE_HEADER/raknet
-/SAMP_API_ONE_HEADER/SAMP
-/SAMP_API_ONE_HEADER/DirectX
-/SAMP_API_ONE_HEADER/x64/Release
+*.dll
+*.lib
+*.ilk
+
+# Сторонние библиотеки (если их не хочешь коммитить)
+imgui/
+kthook/
+raknet/
+memwrapper/
+DirectX/
+SAMP/
+
+# Игнор временных и кэшей
+*.cache
+*.tmp
+
+# Но разрешим исходники и проект
+!*.sln
+!*.vcxproj
+!*.filters
+!*.cpp
+!*.h

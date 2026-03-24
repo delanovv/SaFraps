@@ -505,10 +505,28 @@
     <ClCompile Include="SAMP\classes\R3\Settings_R3.cpp">
       <Filter>Исходные файлы\SAMP\classes\R3</Filter>
     </ClCompile>
-    <ClCompile Include="VideoCapture.cpp">
+    <ClCompile Include="VideoEncoder.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
-    <ClCompile Include="D3D9SharedSurface.cpp">
+    <ClCompile Include="VideoWriter.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="SurfacePool.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="AudioCapture.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="AudioEncoder.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="BufferPool.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="FPSLimiter.cpp">
+      <Filter>Исходные файлы</Filter>
+    </ClCompile>
+    <ClCompile Include="Logger.cpp">
       <Filter>Исходные файлы</Filter>
     </ClCompile>
   </ItemGroup>
@@ -1216,8 +1234,16 @@
     <ClInclude Include="notify\SecondFont.h" />
     <ClInclude Include="notify\imgui_notify.h" />
     <ClInclude Include="notify\font_awesome_5.h" />
-    <ClInclude Include="VideoCapture.h" />
-    <ClInclude Include="D3D9SharedSurface.h" />
+    <ClInclude Include="VideoWriter.h" />
+    <ClInclude Include="VideoEncoder.h" />
+    <ClInclude Include="SurfacePool.h" />
+    <ClInclude Include="Logger.h" />
+    <ClInclude Include="AudioCapture.h" />
+    <ClInclude Include="AudioEncoder.h" />
+    <ClInclude Include="BufferPool.h" />
+    <ClInclude Include="ErrorCodes.h" />
+    <ClInclude Include="FPSLimiter.h" />
+    <ClInclude Include="FrameData.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="DirectX\d3dx9math.inl">
@@ -1225,73 +1251,79 @@
     </None>
   </ItemGroup>
   <ItemGroup>
-    <Library Include="sampapi.lib" />
-    <Library Include="avcodec.lib" />
-    <Library Include="avdevice.lib" />
-    <Library Include="avfilter.lib" />
-    <Library Include="avformat.lib" />
-    <Library Include="avutil.lib" />
-    <Library Include="swresample.lib" />
-    <Library Include="swscale.lib" />
-    <Library Include="libx264.lib" />
-    <Library Include="x265-static.lib" />
-    <Library Include="nvcuvid.lib" />
-    <Library Include="nvencodeapi.lib" />
-    <Library Include="lua51_static.lib" />
-    <Library Include="brotlicommon.lib" />
-    <Library Include="brotlidec.lib" />
-    <Library Include="brotlienc.lib" />
-    <Library Include="bz2.lib" />
-    <Library Include="charset.lib" />
-    <Library Include="fdk-aac.lib" />
-    <Library Include="fontconfig.lib" />
-    <Library Include="freetype.lib" />
-    <Library Include="fribidi.lib" />
-    <Library Include="getopt.lib" />
-    <Library Include="GlU32.Lib" />
-    <Library Include="iconv.lib" />
-    <Library Include="intl.lib" />
-    <Library Include="jpeg.lib" />
-    <Library Include="libcrypto.lib" />
-    <Library Include="libexpatMT.lib" />
-    <Library Include="libmp3lame-static.lib" />
-    <Library Include="libmpghip-static.lib" />
-    <Library Include="libpng16.lib" />
-    <Library Include="libsharpyuv.lib" />
-    <Library Include="libssl.lib" />
-    <Library Include="libwebp.lib" />
-    <Library Include="libwebpdecoder.lib" />
-    <Library Include="libwebpdemux.lib" />
-    <Library Include="libwebpmux.lib" />
-    <Library Include="modplug.lib" />
-    <Library Include="mpg123.lib" />
-    <Library Include="soxr.lib" />
-    <Library Include="speex.lib" />
-    <Library Include="srt.lib" />
-    <Library Include="ssh.lib" />
-    <Library Include="ogg.lib" />
-    <Library Include="OpenCL.lib" />
-    <Library Include="OpenGL32.Lib" />
-    <Library Include="openh264.lib" />
-    <Library Include="openjp2.lib" />
-    <Library Include="openmpt.lib" />
-    <Library Include="opus.lib" />
-    <Library Include="out123.lib" />
-    <Library Include="pthreadVC3.lib" />
-    <Library Include="pthreadVCE3.lib" />
-    <Library Include="pthreadVSE3.lib" />
-    <Library Include="syn123.lib" />
-    <Library Include="theora.lib" />
-    <Library Include="theoradec.lib" />
-    <Library Include="theoraenc.lib" />
-    <Library Include="turbojpeg.lib" />
-    <Library Include="vorbis.lib" />
-    <Library Include="vorbisenc.lib" />
-    <Library Include="vorbisfile.lib" />
-    <Library Include="vpx.lib" />
-    <Library Include="zlib.lib" />
-    <Library Include="yuv.lib" />
-    <Library Include="libxml2.lib" />
-    <Library Include="libmfx.lib" />
+    <Library Include="lib\sampapi.lib" />
+    <Library Include="lib\avcodec.lib" />
+    <Library Include="lib\avdevice.lib" />
+    <Library Include="lib\avfilter.lib" />
+    <Library Include="lib\avformat.lib" />
+    <Library Include="lib\avutil.lib" />
+    <Library Include="lib\swresample.lib" />
+    <Library Include="lib\swscale.lib" />
+    <Library Include="lib\libx264.lib" />
+    <Library Include="lib\x265-static.lib" />
+    <Library Include="lib\nvcuvid.lib" />
+    <Library Include="lib\nvencodeapi.lib" />
+    <Library Include="lib\brotlicommon.lib" />
+    <Library Include="lib\brotlidec.lib" />
+    <Library Include="lib\brotlienc.lib" />
+    <Library Include="lib\bz2.lib" />
+    <Library Include="lib\charset.lib" />
+    <Library Include="lib\fdk-aac.lib" />
+    <Library Include="lib\fontconfig.lib" />
+    <Library Include="lib\freetype.lib" />
+    <Library Include="lib\fribidi.lib" />
+    <Library Include="lib\getopt.lib" />
+    <Library Include="lib\GlU32.Lib" />
+    <Library Include="lib\iconv.lib" />
+    <Library Include="lib\intl.lib" />
+    <Library Include="lib\jpeg.lib" />
+    <Library Include="lib\libcrypto.lib" />
+    <Library Include="lib\libexpatMT.lib" />
+    <Library Include="lib\libmp3lame-static.lib" />
+    <Library Include="lib\libmpghip-static.lib" />
+    <Library Include="lib\libpng16.lib" />
+    <Library Include="lib\libsharpyuv.lib" />
+    <Library Include="lib\libssl.lib" />
+    <Library Include="lib\libwebp.lib" />
+    <Library Include="lib\libwebpdecoder.lib" />
+    <Library Include="lib\libwebpdemux.lib" />
+    <Library Include="lib\libwebpmux.lib" />
+    <Library Include="lib\modplug.lib" />
+    <Library Include="lib\mpg123.lib" />
+    <Library Include="lib\soxr.lib" />
+    <Library Include="lib\speex.lib" />
+    <Library Include="lib\srt.lib" />
+    <Library Include="lib\ssh.lib" />
+    <Library Include="lib\ogg.lib" />
+    <Library Include="lib\OpenCL.lib" />
+    <Library Include="lib\OpenGL32.Lib" />
+    <Library Include="lib\openh264.lib" />
+    <Library Include="lib\openjp2.lib" />
+    <Library Include="lib\openmpt.lib" />
+    <Library Include="lib\opus.lib" />
+    <Library Include="lib\out123.lib" />
+    <Library Include="lib\pthreadVC3.lib" />
+    <Library Include="lib\pthreadVCE3.lib" />
+    <Library Include="lib\pthreadVSE3.lib" />
+    <Library Include="lib\syn123.lib" />
+    <Library Include="lib\theora.lib" />
+    <Library Include="lib\theoradec.lib" />
+    <Library Include="lib\theoraenc.lib" />
+    <Library Include="lib\turbojpeg.lib" />
+    <Library Include="lib\vorbis.lib" />
+    <Library Include="lib\vorbisenc.lib" />
+    <Library Include="lib\vorbisfile.lib" />
+    <Library Include="lib\vpx.lib" />
+    <Library Include="lib\zlib.lib" />
+    <Library Include="lib\yuv.lib" />
+    <Library Include="lib\libxml2.lib" />
+    <Library Include="lib\libmfx.lib" />
+    <Library Include="lib\lua51.lib" />
+    <Library Include="lib\libluajit.lib" />
+    <Library Include="lib\luajit.lib" />
+    <Library Include="lib\dxva2.lib" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="LICENSE.txt" />
   </ItemGroup>
 </Project>

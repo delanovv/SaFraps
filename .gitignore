@@ -24,6 +24,8 @@ raknet/
 memwrapper/
 DirectX/
 SAMP/
+notify/
+lib/
 
 # Игнор временных и кэшей
 *.cache

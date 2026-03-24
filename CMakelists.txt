@@ -1,0 +1,402 @@
+cmake_minimum_required(VERSION 3.20)
+project(fraps CXX C)
+
+# ============================================================
+#  Глобальные настройки
+# ============================================================
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Проект собирается только под Windows (DLL-инъекция в GTA SA / SAMP)
+if(NOT WIN32)
+    message(FATAL_ERROR "This project targets Windows only.")
+endif()
+
+# ============================================================
+#  Пути к внешним SDK (задай через -D или vcpkg toolchain)
+# ============================================================
+# Пример:
+#   cmake -B build -DVCPKG_DIR="C:/vcpkg/installed/x86-windows-static"
+#                  -DFFMPEG_DIR="C:/ffmpeg"
+#                  -DCUDA_TOOLKIT_ROOT_DIR="C:/Program Files/NVIDIA GPU Computing Toolkit/CUDA/v12.6"
+#                  -DDXSDK_DIR="C:/DXSDK"
+#                  -DPLUGIN_SDK_DIR="C:/plugin-sdk"
+
+set(VCPKG_DIR        ""  CACHE PATH "vcpkg installed prefix (x86-windows-static)")
+set(FFMPEG_DIR       ""  CACHE PATH "FFmpeg root (include/ + lib/)")
+set(CUDA_TOOLKIT_ROOT_DIR "" CACHE PATH "CUDA Toolkit root")
+set(DXSDK_DIR        ""  CACHE PATH "DirectX SDK June 2010 root")
+set(PLUGIN_SDK_DIR   ""  CACHE PATH "plugin-sdk root")
+
+# ============================================================
+#  Определения препроцессора (общие для всех конфигураций)
+# ============================================================
+set(COMMON_DEFINES
+    SAMP_R1_COMPILE
+    WIN32
+    _WINSOCK_DEPRECATED_NO_WARNINGS
+    _CRT_SECURE_NO_WARNINGS
+    WIN32_LEAN_AND_MEAN
+    _WINDLL
+    NOMINMAX
+    GTASA
+    "GTAGAME_NAME=\"San Andreas\""
+    "GTAGAME_ABBR=\"SA\""
+    "GTAGAME_ABBRLOW=\"sa\""
+    "GTAGAME_PROTAGONISTNAME=\"CJ\""
+    "GTAGAME_CITYNAME=\"San Andreas\""
+    PLUGIN_SGV_10US
+    PSDK
+)
+
+# ============================================================
+#  Исходные файлы — основной проект
+# ============================================================
+set(MAIN_SOURCES
+    main.cpp
+    AudioCapture.cpp
+    AudioEncoder.cpp
+    BufferPool.cpp
+    FPSLimiter.cpp
+    Logger.cpp
+    SurfacePool.cpp
+    VideoEncoder.cpp
+    VideoWriter.cpp
+)
+
+# ============================================================
+#  ImGui
+# ============================================================
+set(IMGUI_SOURCES
+    imgui/imgui.cpp
+    imgui/imgui_demo.cpp
+    imgui/imgui_draw.cpp
+    imgui/imgui_impl_dx9.cpp
+    imgui/imgui_impl_win32.cpp
+    imgui/imgui_tables.cpp
+    imgui/imgui_widgets.cpp
+)
+
+# ============================================================
+#  SAMP RakNet
+# ============================================================
+set(RAKNET_SOURCES
+    SAMP/RakNet/BitStream.cpp
+    SAMP/RakNet/CheckSum.cpp
+    SAMP/RakNet/CommandParserInterface.cpp
+    SAMP/RakNet/ConsoleServer.cpp
+    SAMP/RakNet/DS_ByteQueue.cpp
+    SAMP/RakNet/DS_HuffmanEncodingTree.cpp
+    SAMP/RakNet/DS_Table.cpp
+    SAMP/RakNet/DataBlockEncryptor.cpp
+    SAMP/RakNet/DataCompressor.cpp
+    SAMP/RakNet/GetTime.cpp
+    SAMP/RakNet/InternalPacketPool.cpp
+    SAMP/RakNet/LinuxStrings.cpp
+    SAMP/RakNet/LogCommandParser.cpp
+    SAMP/RakNet/NetworkIDGenerator.cpp
+    SAMP/RakNet/NetworkTypes.cpp
+    SAMP/RakNet/PluginInterface.cpp
+    SAMP/RakNet/RPCMap.cpp
+    SAMP/RakNet/RakClient.cpp
+    SAMP/RakNet/RakNetCommandParser.cpp
+    SAMP/RakNet/RakNetStatistics.cpp
+    SAMP/RakNet/RakNetworkFactory.cpp
+    SAMP/RakNet/RakPeer.cpp
+    SAMP/RakNet/RakSleep.cpp
+    SAMP/RakNet/Rand.cpp
+    SAMP/RakNet/ReliabilityLayer.cpp
+    SAMP/RakNet/SHA1.cpp
+    SAMP/RakNet/SimpleMutex.cpp
+    SAMP/RakNet/SocketLayer.cpp
+    SAMP/RakNet/StringCompressor.cpp
+    SAMP/RakNet/StringTable.cpp
+    SAMP/RakNet/SystemAddressList.cpp
+    SAMP/RakNet/SystemDatabaseClient.cpp
+    SAMP/RakNet/SystemDatabaseServer.cpp
+    SAMP/RakNet/TableSerializer.cpp
+    SAMP/RakNet/_findfirst.cpp
+    SAMP/RakNet/rijndael.cpp
+)
+
+# ============================================================
+#  SAMP classes R1
+# ============================================================
+set(SAMP_R1_SOURCES
+    SAMP/classes/R1/AimStuff_R1.cpp
+    SAMP/classes/R1/CActorPool_R1.cpp
+    SAMP/classes/R1/CActor_R1.cpp
+    SAMP/classes/R1/CAudioStream_R1.cpp
+    SAMP/classes/R1/CAudio_R1.cpp
+    SAMP/classes/R1/CCamera_R1.cpp
+    SAMP/classes/R1/CChat_R1.cpp
+    SAMP/classes/R1/CConfig_R1.cpp
+    SAMP/classes/R1/CDeathWindow_R1.cpp
+    SAMP/classes/R1/CDialog_R1.cpp
+    SAMP/classes/R1/CEntity_R1.cpp
+    SAMP/classes/R1/CFonts_R1.cpp
+    SAMP/classes/R1/CGame_R1.cpp
+    SAMP/classes/R1/CGangZonePool_R1.cpp
+    SAMP/classes/R1/CHttpClient_R1.cpp
+    SAMP/classes/R1/CInput_R1.cpp
+    SAMP/classes/R1/CLabelPool_R1.cpp
+    SAMP/classes/R1/CLabel_R1.cpp
+    SAMP/classes/R1/CLicensePlate_R1.cpp
+    SAMP/classes/R1/CLocalPlayer_R1.cpp
+    SAMP/classes/R1/CMenuPool_R1.cpp
+    SAMP/classes/R1/CMenu_R1.cpp
+    SAMP/classes/R1/CNetGame_R1.cpp
+    SAMP/classes/R1/CNetStats_R1.cpp
+    SAMP/classes/R1/CObjectPool_R1.cpp
+    SAMP/classes/R1/CObjectSelection_R1.cpp
+    SAMP/classes/R1/CObject_R1.cpp
+    SAMP/classes/R1/CPed_R1.cpp
+    SAMP/classes/R1/CPickupPool_R1.cpp
+    SAMP/classes/R1/CPlayerInfo_R1.cpp
+    SAMP/classes/R1/CPlayerPool_R1.cpp
+    SAMP/classes/R1/CPlayerTags_R1.cpp
+    SAMP/classes/R1/CRect_R1.cpp
+    SAMP/classes/R1/CRemotePlayer_R1.cpp
+    SAMP/classes/R1/CScoreboard_R1.cpp
+    SAMP/classes/R1/CSpawnScreen_R1.cpp
+    SAMP/classes/R1/CTextDrawPool_R1.cpp
+    SAMP/classes/R1/CTextDrawSelection_R1.cpp
+    SAMP/classes/R1/CTextDraw_R1.cpp
+    SAMP/classes/R1/CVector_R1.cpp
+    SAMP/classes/R1/CVehiclePool_R1.cpp
+    SAMP/classes/R1/CVehicle_R1.cpp
+    SAMP/classes/R1/Commands_R1.cpp
+    SAMP/classes/R1/DebugScript_R1.cpp
+    SAMP/classes/R1/Debug_R1.cpp
+    SAMP/classes/R1/Exception_R1.cpp
+    SAMP/classes/R1/GUI_R1.cpp
+    SAMP/classes/R1/InputHandler_R1.cpp
+    SAMP/classes/R1/KeyStuff_R1.cpp
+    SAMP/classes/R1/RPC_R1.cpp
+    SAMP/classes/R1/Scripting_R1.cpp
+    SAMP/classes/R1/Settings_R1.cpp
+    SAMP/classes/R1/VehicleSelection_R1.cpp
+    SAMP/classes/R1/common_R1.cpp
+    SAMP/samp_auth.cpp
+    SAMP/samp_netencr.cpp
+)
+
+# ============================================================
+#  SAMP classes R3
+# ============================================================
+set(SAMP_R3_SOURCES
+    SAMP/classes/R3/AimStuff_R3.cpp
+    SAMP/classes/R3/CActorPool_R3.cpp
+    SAMP/classes/R3/CActor_R3.cpp
+    SAMP/classes/R3/CAudioStream_R3.cpp
+    SAMP/classes/R3/CAudio_R3.cpp
+    SAMP/classes/R3/CCamera_R3.cpp
+    SAMP/classes/R3/CChatBubble_R3.cpp
+    SAMP/classes/R3/CChat_R3.cpp
+    SAMP/classes/R3/CConfig_R3.cpp
+    SAMP/classes/R3/CDeathWindow_R3.cpp
+    SAMP/classes/R3/CDialog_R3.cpp
+    SAMP/classes/R3/CEntity_R3.cpp
+    SAMP/classes/R3/CFont_R3.cpp
+    SAMP/classes/R3/CFonts_R3.cpp
+    SAMP/classes/R3/CGame_R3.cpp
+    SAMP/classes/R3/CGangZonePool_R3.cpp
+    SAMP/classes/R3/CHelpDialog_R3.cpp
+    SAMP/classes/R3/CHttpClient_R3.cpp
+    SAMP/classes/R3/CInput_R3.cpp
+    SAMP/classes/R3/CLabelPool_R3.cpp
+    SAMP/classes/R3/CLabel_R3.cpp
+    SAMP/classes/R3/CLicensePlate_R3.cpp
+    SAMP/classes/R3/CLocalPlayer_R3.cpp
+    SAMP/classes/R3/CMenuPool_R3.cpp
+    SAMP/classes/R3/CMenu_R3.cpp
+    SAMP/classes/R3/CNetGame_R3.cpp
+    SAMP/classes/R3/CNetStats_R3.cpp
+    SAMP/classes/R3/CObjectMaterialText_R3.cpp
+    SAMP/classes/R3/CObjectPool_R3.cpp
+    SAMP/classes/R3/CObjectSelection_R3.cpp
+    SAMP/classes/R3/CObject_R3.cpp
+    SAMP/classes/R3/CPed_R3.cpp
+    SAMP/classes/R3/CPickupPool_R3.cpp
+    SAMP/classes/R3/CPlayerInfo_R3.cpp
+    SAMP/classes/R3/CPlayerPool_R3.cpp
+    SAMP/classes/R3/CPlayerTags_R3.cpp
+    SAMP/classes/R3/CRect_R3.cpp
+    SAMP/classes/R3/CRemotePlayer_R3.cpp
+    SAMP/classes/R3/CScoreboard_R3.cpp
+    SAMP/classes/R3/CSpawnScreen_R3.cpp
+    SAMP/classes/R3/CSrvNetStats_R3.cpp
+    SAMP/classes/R3/CTextDrawPool_R3.cpp
+    SAMP/classes/R3/CTextDrawSelection_R3.cpp
+    SAMP/classes/R3/CTextDraw_R3.cpp
+    SAMP/classes/R3/CVector_R3.cpp
+    SAMP/classes/R3/CVehiclePool_R3.cpp
+    SAMP/classes/R3/CVehicle_R3.cpp
+    SAMP/classes/R3/Commands_R3.cpp
+    SAMP/classes/R3/DebugScript_R3.cpp
+    SAMP/classes/R3/Exception_R3.cpp
+    SAMP/classes/R3/GUI_R3.cpp
+    SAMP/classes/R3/KeyStuff_R3.cpp
+    SAMP/classes/R3/Scripting_R3.cpp
+    SAMP/classes/R3/Settings_R3.cpp
+    SAMP/classes/R3/common_R3.cpp
+)
+
+# ============================================================
+#  memwrapper HDE
+# ============================================================
+set(MEMWRAPPER_SOURCES
+    memwrapper/hde/hde32.cpp
+)
+
+# ============================================================
+#  Целевой бинарник — DLL (fraps.dll)
+# ============================================================
+add_library(${PROJECT_NAME} SHARED
+    ${MAIN_SOURCES}
+    ${IMGUI_SOURCES}
+    ${RAKNET_SOURCES}
+    ${SAMP_R1_SOURCES}
+    ${SAMP_R3_SOURCES}
+    ${MEMWRAPPER_SOURCES}
+)
+
+# ============================================================
+#  Include directories
+# ============================================================
+target_include_directories(${PROJECT_NAME} PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}                    # корень проекта
+    ${CMAKE_CURRENT_SOURCE_DIR}/imgui
+    ${CMAKE_CURRENT_SOURCE_DIR}/SAMP
+    ${CMAKE_CURRENT_SOURCE_DIR}/SAMP/RakNet
+    ${CMAKE_CURRENT_SOURCE_DIR}/kthook/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/kthook/xbyak
+    ${CMAKE_CURRENT_SOURCE_DIR}/kthook/ktsignal
+    ${CMAKE_CURRENT_SOURCE_DIR}/memwrapper
+    ${CMAKE_CURRENT_SOURCE_DIR}/notify
+
+    # Внешние SDK — указываются через переменные выше
+    $<$<BOOL:${DXSDK_DIR}>:${DXSDK_DIR}/Include>
+    $<$<BOOL:${PLUGIN_SDK_DIR}>:${PLUGIN_SDK_DIR}/plugin_sa>
+    $<$<BOOL:${PLUGIN_SDK_DIR}>:${PLUGIN_SDK_DIR}/plugin_sa/game_sa>
+    $<$<BOOL:${PLUGIN_SDK_DIR}>:${PLUGIN_SDK_DIR}/shared>
+    $<$<BOOL:${PLUGIN_SDK_DIR}>:${PLUGIN_SDK_DIR}/shared/game>
+    $<$<BOOL:${VCPKG_DIR}>:${VCPKG_DIR}/include>
+    $<$<BOOL:${FFMPEG_DIR}>:${FFMPEG_DIR}/include>
+    $<$<BOOL:${CUDA_TOOLKIT_ROOT_DIR}>:${CUDA_TOOLKIT_ROOT_DIR}/include>
+)
+
+# ============================================================
+#  Preprocessor definitions
+# ============================================================
+target_compile_definitions(${PROJECT_NAME} PRIVATE ${COMMON_DEFINES})
+
+# ============================================================
+#  Compiler options (MSVC)
+# ============================================================
+if(MSVC)
+    target_compile_options(${PROJECT_NAME} PRIVATE
+        /MP                 # параллельная компиляция
+        /W3                 # предупреждения уровня 3
+        /wd4996             # отключить warning deprecated CRT
+        /wd4244 /wd4267     # truncation int/size_t (RakNet полон этим)
+        $<$<CONFIG:Release>:/O2 /GL /Gy>   # максимальная оптимизация
+        $<$<CONFIG:Debug>:/Od /RTC1 /Zi>   # отладка
+    )
+    target_link_options(${PROJECT_NAME} PRIVATE
+        $<$<CONFIG:Release>:/LTCG /OPT:REF /OPT:ICF>
+    )
+    # Кодировка исходников — MultiByte (как в vcxproj)
+    # CMake сам не пробрасывает CharacterSet, но /D_MBCS делает это явно
+    target_compile_definitions(${PROJECT_NAME} PRIVATE _MBCS)
+endif()
+
+# ============================================================
+#  Runtime library — статическая (/MT, /MTd) как в vcxproj Release
+# ============================================================
+set_property(TARGET ${PROJECT_NAME} PROPERTY
+    MSVC_RUNTIME_LIBRARY "MultiThreaded$<$<CONFIG:Debug>:Debug>")
+
+# ============================================================
+#  Link libraries
+# ============================================================
+
+# Системные библиотеки Windows
+target_link_libraries(${PROJECT_NAME} PRIVATE
+    bcrypt
+    secur32
+    mfplat
+    mfuuid
+    strmiids
+    ws2_32
+    dxva2
+    Crypt32
+    Cfgmgr32
+    OpenCL
+)
+
+# DirectX 9
+if(DXSDK_DIR)
+    target_link_directories(${PROJECT_NAME} PRIVATE "${DXSDK_DIR}/Lib/x86")
+    target_link_libraries(${PROJECT_NAME} PRIVATE d3d9 d3dx9)
+endif()
+
+# vcpkg (zlib, openssl, snappy, lzma, opus, bzip2)
+if(VCPKG_DIR)
+    target_link_directories(${PROJECT_NAME} PRIVATE "${VCPKG_DIR}/lib")
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        zlib
+        libssl
+        libcrypto
+        snappy
+        lzma
+        opus
+        bz2
+    )
+endif()
+
+# FFmpeg + x264 + x265
+if(FFMPEG_DIR)
+    target_link_directories(${PROJECT_NAME} PRIVATE "${FFMPEG_DIR}/lib")
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        avcodec
+        avformat
+        avutil
+        swresample
+        swscale
+        libx264
+        x265-static
+    )
+endif()
+
+# CUDA / NVENC
+if(CUDA_TOOLKIT_ROOT_DIR)
+    target_link_directories(${PROJECT_NAME} PRIVATE
+        "${CUDA_TOOLKIT_ROOT_DIR}/lib/Win32"
+    )
+    target_link_libraries(${PROJECT_NAME} PRIVATE
+        nvcuvid
+        nvencodeapi
+    )
+endif()
+
+# Intel Media SDK (libmfx) — опционально
+find_library(LIBMFX_LIB libmfx HINTS "${VCPKG_DIR}/lib")
+if(LIBMFX_LIB)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBMFX_LIB})
+endif()
+
+# libxml2 — опционально
+find_library(LIBXML2_LIB libxml2 HINTS "${VCPKG_DIR}/lib")
+if(LIBXML2_LIB)
+    target_link_libraries(${PROJECT_NAME} PRIVATE ${LIBXML2_LIB})
+endif()
+
+# ============================================================
+#  Выходное имя — всегда "fraps" (как TargetName в vcxproj)
+# ============================================================
+set_target_properties(${PROJECT_NAME} PROPERTIES
+    OUTPUT_NAME "fraps"
+    PREFIX ""           # убрать "lib" префикс на Linux (для единообразия)
+)

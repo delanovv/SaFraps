@@ -17,15 +17,8 @@ Debug/
 *.lib
 *.ilk
 
-# Сторонние библиотеки (если их не хочешь коммитить)
-imgui/
-kthook/
-raknet/
-memwrapper/
-DirectX/
-SAMP/
-notify/
-lib/
+/lib
+/DirectX
 
 # Игнор временных и кэшей
 *.cache

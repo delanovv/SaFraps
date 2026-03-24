@@ -17,8 +17,8 @@ public:
     void log(const std::string& msg, LogLevel level);
 
 private:
-    bool       m_enabled = true;
-    LogLevel   m_level   = LogLevel::INFO;
-    mutable std::mutex m_mutex;
-    std::ofstream      m_file;
+    bool          m_enabled = true;
+    LogLevel      m_level   = LogLevel::INFO;
+    std::mutex    m_mutex;
+    std::ofstream m_file;
 };

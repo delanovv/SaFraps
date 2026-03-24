@@ -3,26 +3,19 @@
 BufferPool::BufferPool(size_t maxPoolSize) : m_maxSize(maxPoolSize) {}
 
 BufferPool::~BufferPool() {
-    {
-        std::lock_guard<std::mutex> lock(m_rawMutex);
-        drainPool(m_rawPool);
-    }
-    {
-        std::lock_guard<std::mutex> lock(m_yuvMutex);
-        drainPool(m_yuvPool);
-    }
+    { std::lock_guard<std::mutex> lock(m_rawMutex); drainPool(m_rawPool); }
+    { std::lock_guard<std::mutex> lock(m_yuvMutex); drainPool(m_yuvPool); }
 }
 
 void BufferPool::drainPool(std::vector<uint8_t*>& pool) {
-    for (auto* p : pool)
-        delete[] p;
+    for (auto* p : pool) delete[] p;
     pool.clear();
 }
 
 uint8_t* BufferPool::acquireRaw(size_t size) {
     std::lock_guard<std::mutex> lock(m_rawMutex);
     if (!m_rawPool.empty()) {
-        uint8_t* buf = m_rawPool.back();
+        auto* buf = m_rawPool.back();
         m_rawPool.pop_back();
         return buf;
     }
@@ -40,7 +33,7 @@ void BufferPool::releaseRaw(uint8_t* buf) {
 uint8_t* BufferPool::acquireYuv(size_t size) {
     std::lock_guard<std::mutex> lock(m_yuvMutex);
     if (!m_yuvPool.empty()) {
-        uint8_t* buf = m_yuvPool.back();
+        auto* buf = m_yuvPool.back();
         m_yuvPool.pop_back();
         return buf;
     }

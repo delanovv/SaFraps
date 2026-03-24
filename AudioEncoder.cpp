@@ -1,17 +1,17 @@
 #include "AudioEncoder.h"
 #include <cstring>
 
-AudioEncoder::AudioEncoder(Logger&                      logger,
-                            std::queue<AudioFrame>&      inQueue,
-                            std::mutex&                  inMutex,
-                            std::condition_variable&     inCV,
-                            AVFormatContext*             fmtCtx,
-                            AVCodecContext*              codecCtx,
-                            AVStream*                    stream,
-                            SwrContext*                  swrCtx,
-                            std::mutex&                  writeMutex,
-                            int                          sampleRate,
-                            int                          channels)
+AudioEncoder::AudioEncoder(Logger&                  logger,
+                            std::queue<AudioFrame>&  inQueue,
+                            std::mutex&              inMutex,
+                            std::condition_variable& inCV,
+                            AVFormatContext*         fmtCtx,
+                            AVCodecContext*          codecCtx,
+                            AVStream*                stream,
+                            SwrContext*              swrCtx,
+                            std::mutex&              writeMutex,
+                            int                      sampleRate,
+                            int                      channels)
     : m_logger(logger)
     , m_inQueue(inQueue)
     , m_inMutex(inMutex)
@@ -35,22 +35,21 @@ AudioEncoder::~AudioEncoder() {
 }
 
 void AudioEncoder::start() {
-    m_stop = false;
+    m_stop   = false;
     m_thread = std::thread(&AudioEncoder::encodeLoop, this);
 }
 
 void AudioEncoder::stop() {
     m_stop = true;
     m_inCV.notify_all();
-    if (m_thread.joinable())
-        m_thread.join();
+    if (m_thread.joinable()) m_thread.join();
 }
 
 void AudioEncoder::encodeLoop() {
-    m_logger.log("AudioEncoder: thread started", LogLevel::INFO);
+    m_logger.log("AudioEncoder: started", LogLevel::INFO);
 
-    int requiredSamples = m_codecCtx ? m_codecCtx->frame_size : 1024;
-    int64_t lastPts     = 0;
+    int     requiredSamples = m_codecCtx ? m_codecCtx->frame_size : 1024;
+    int64_t lastPts         = 0;
 
     std::vector<std::vector<float>> audioBuffer(m_channels);
     for (auto& ch : audioBuffer)
@@ -72,35 +71,30 @@ void AudioEncoder::encodeLoop() {
             break;
         }
 
-        if (m_inQueue.empty())
-            continue;
+        if (m_inQueue.empty()) continue;
 
         auto [pData, pts, frameCount] = m_inQueue.front();
         m_inQueue.pop();
         lock.unlock();
 
-        if (!pData || frameCount == 0) {
-            delete[] pData;
-            continue;
-        }
+        if (!pData || frameCount == 0) { delete[] pData; continue; }
 
         if (pts <= lastPts)
             pts = lastPts + static_cast<int64_t>(1000000.0 * frameCount / m_sampleRate);
 
-        int outSamples = static_cast<int>(av_rescale_rnd(
+        int      outSamples    = static_cast<int>(av_rescale_rnd(
             swr_get_delay(m_swrCtx, m_sampleRate) + frameCount,
             m_sampleRate, m_sampleRate, AV_ROUND_UP));
-
         uint8_t* converted[2] = {nullptr, nullptr};
-        int ret = av_samples_alloc(converted, nullptr, m_channels, outSamples, AV_SAMPLE_FMT_FLTP, 0);
-        if (ret < 0) {
+
+        if (av_samples_alloc(converted, nullptr, m_channels, outSamples, AV_SAMPLE_FMT_FLTP, 0) < 0) {
             delete[] pData;
             continue;
         }
 
-        ret = swr_convert(m_swrCtx, converted, outSamples,
-                          const_cast<const uint8_t**>(reinterpret_cast<uint8_t**>(&pData)),
-                          static_cast<int>(frameCount));
+        int ret = swr_convert(m_swrCtx, converted, outSamples,
+                              const_cast<const uint8_t**>(reinterpret_cast<uint8_t**>(&pData)),
+                              static_cast<int>(frameCount));
         delete[] pData;
 
         if (ret > 0) {
@@ -117,7 +111,7 @@ void AudioEncoder::encodeLoop() {
         }
     }
 
-    m_logger.log("AudioEncoder: thread finished", LogLevel::INFO);
+    m_logger.log("AudioEncoder: finished", LogLevel::INFO);
 }
 
 void AudioEncoder::sendFrame(std::vector<std::vector<float>>& buffer, int64_t pts, int requiredSamples) {
@@ -130,8 +124,7 @@ void AudioEncoder::sendFrame(std::vector<std::vector<float>>& buffer, int64_t pt
     m_frame->sample_rate    = m_sampleRate;
     m_frame->pts            = av_rescale_q(pts < 0 ? 0 : pts, {1, 1000000}, m_codecCtx->time_base);
 
-    if (av_frame_get_buffer(m_frame, 0) < 0)
-        return;
+    if (av_frame_get_buffer(m_frame, 0) < 0) { av_frame_unref(m_frame); return; }
 
     for (int ch = 0; ch < m_channels; ++ch) {
         if (buffer[ch].size() < static_cast<size_t>(requiredSamples)) {
@@ -144,12 +137,7 @@ void AudioEncoder::sendFrame(std::vector<std::vector<float>>& buffer, int64_t pt
 
     int ret = avcodec_send_frame(m_codecCtx, m_frame);
     av_frame_unref(m_frame);
-
-    if (ret < 0) {
-        char err[128]; av_strerror(ret, err, sizeof(err));
-        m_logger.log("AudioEncoder: send_frame failed: " + std::string(err), LogLevel::ERR);
-        return;
-    }
+    if (ret < 0) return;
 
     while (true) {
         av_packet_unref(m_pkt);
@@ -163,19 +151,13 @@ void AudioEncoder::sendFrame(std::vector<std::vector<float>>& buffer, int64_t pt
         m_pkt->dts = m_pkt->pts;
 
         std::lock_guard<std::mutex> wlock(m_writeMutex);
-        if (m_fmtCtx && m_fmtCtx->pb) {
-            ret = av_interleaved_write_frame(m_fmtCtx, m_pkt);
-            if (ret < 0) {
-                char err[128]; av_strerror(ret, err, sizeof(err));
-                m_logger.log("AudioEncoder: write_frame failed: " + std::string(err), LogLevel::ERR);
-            }
-        }
+        if (m_fmtCtx && m_fmtCtx->pb)
+            av_interleaved_write_frame(m_fmtCtx, m_pkt);
     }
 }
 
 void AudioEncoder::flushCodec(int64_t lastPts) {
     if (!m_codecCtx) return;
-
     avcodec_send_frame(m_codecCtx, nullptr);
 
     while (true) {
@@ -193,6 +175,5 @@ void AudioEncoder::flushCodec(int64_t lastPts) {
         if (m_fmtCtx && m_fmtCtx->pb)
             av_interleaved_write_frame(m_fmtCtx, m_pkt);
     }
-
     m_logger.log("AudioEncoder: codec flushed", LogLevel::INFO);
 }

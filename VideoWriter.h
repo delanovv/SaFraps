@@ -5,6 +5,7 @@
 #include <mutex>
 #include <condition_variable>
 #include <chrono>
+#include <vector>
 #include <d3d9.h>
 #include <wrl/client.h>
 
@@ -19,6 +20,8 @@ extern "C" {
 #include "FPSLimiter.h"
 #include "FrameData.h"
 #include "SurfacePool.h"
+#include "BufferPool.h"
+#include "ThreadPool.h"
 #include "AudioCapture.h"
 #include "AudioEncoder.h"
 #include "VideoEncoder.h"
@@ -29,16 +32,17 @@ class VideoWriter {
 public:
     struct Config {
         std::string outputPath;
-        int         width       = 0;
-        int         height      = 0;
-        int         fps         = 30;
-        int         crf         = 23;
+        int         width         = 0;
+        int         height        = 0;
+        int         fps           = 30;
+        int         crf           = 23;
         std::string preset;
-        bool        enableAudio = true;
-        int         sampleRate  = 44100;
-        int         channels    = 2;
-        bool        enableLog   = true;
-        LogLevel    logLevel    = LogLevel::INFO;
+        bool        enableAudio   = true;
+        int         sampleRate    = 44100;
+        int         channels      = 2;
+        bool        enableLog     = true;
+        LogLevel    logLevel      = LogLevel::INFO;
+        int         surfaceCount  = 6;
     };
 
     VideoWriter();
@@ -52,10 +56,18 @@ public:
     void    captureFrame(IDirect3DDevice9* device);
 
 private:
+    struct PendingFrame {
+        ComPtr<IDirect3DSurface9> surface;
+        ComPtr<IDirect3DQuery9>   query;
+        int64_t                   pts = 0;
+    };
+
     HRESULT initFFmpeg();
     void    freeFFmpeg();
-
-    static void parallelCopy(uint8_t* dst, const uint8_t* src, size_t size);
+    void    setThreadPriorities();
+    bool    reinitSurfaces(IDirect3DDevice9* device, const D3DSURFACE_DESC& desc);
+    void    pollPendingFrames(IDirect3DDevice9* device);
+    void    processSurface(IDirect3DDevice9* device, PendingFrame& pending);
 
     Config  m_config;
     Logger  m_logger;
@@ -63,8 +75,11 @@ private:
 
     FPSLimiter   m_limiter;
     SurfacePool  m_surfacePool{m_logger};
+    BufferPool   m_captureBufferPool;
+    ThreadPool   m_copyThreadPool;
 
     ComPtr<IDirect3DSurface9> m_intermediateSurface;
+    std::vector<PendingFrame> m_pendingFrames;
 
     std::chrono::steady_clock::time_point m_startTime;
 
@@ -76,7 +91,7 @@ private:
     std::mutex              m_audioMutex;
     std::condition_variable m_audioCV;
 
-    AVFormatContext* m_fmtCtx       = nullptr;
+    AVFormatContext* m_fmtCtx        = nullptr;
     AVCodecContext*  m_videoCodecCtx = nullptr;
     AVCodecContext*  m_audioCodecCtx = nullptr;
     AVStream*        m_videoStream   = nullptr;
@@ -88,5 +103,6 @@ private:
     std::unique_ptr<AudioEncoder> m_audioEncoder;
     std::unique_ptr<VideoEncoder> m_videoEncoder;
 
-    static constexpr size_t MAX_QUEUE_SIZE = 100;
+    static constexpr size_t MAX_QUEUE_SIZE    = 100;
+    static constexpr size_t MAX_PENDING_FRAMES = 4;
 };

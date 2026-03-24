@@ -5,7 +5,6 @@ class FPSLimiter {
 public:
     FPSLimiter() = default;
     explicit FPSLimiter(float fps);
-
     bool tick();
 
 private:

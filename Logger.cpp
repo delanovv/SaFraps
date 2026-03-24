@@ -19,7 +19,6 @@ void Logger::setLevel(LogLevel level) {
 
 void Logger::log(const std::string& msg, LogLevel level) {
     std::lock_guard<std::mutex> lock(m_mutex);
-
     if (!m_enabled || static_cast<int>(level) > static_cast<int>(m_level))
         return;
 
@@ -33,10 +32,10 @@ void Logger::log(const std::string& msg, LogLevel level) {
     char timeBuf[64];
     std::strftime(timeBuf, sizeof(timeBuf), "%Y-%m-%d %H:%M:%S", std::localtime(&t));
 
-    const char* lvlStr = (level == LogLevel::ERR)   ? "ERROR"
-                       : (level == LogLevel::DEBUG) ? "DEBUG"
-                                                     : "INFO";
+    const char* lvl = (level == LogLevel::ERR)   ? "ERROR"
+                    : (level == LogLevel::DEBUG) ? "DEBUG"
+                                                  : "INFO";
 
-    m_file << "[" << timeBuf << "] [" << lvlStr << "] " << msg << "\n";
+    m_file << "[" << timeBuf << "] [" << lvl << "] " << msg << "\n";
     m_file.flush();
 }

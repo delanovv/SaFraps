@@ -18,6 +18,8 @@ public:
     void     releaseYuv(uint8_t* buf);
 
 private:
+    static void drainPool(std::vector<uint8_t*>& pool);
+
     size_t m_maxSize;
 
     std::mutex             m_rawMutex;
@@ -25,6 +27,4 @@ private:
 
     std::mutex             m_yuvMutex;
     std::vector<uint8_t*> m_yuvPool;
-
-    static void drainPool(std::vector<uint8_t*>& pool);
 };

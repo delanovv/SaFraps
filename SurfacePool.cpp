@@ -13,8 +13,7 @@ bool SurfacePool::initialize(IDirect3DDevice9* device, UINT width, UINT height,
             width, height, format, D3DPOOL_SYSTEMMEM, &surface, nullptr);
 
         if (FAILED(hr)) {
-            m_logger.log("SurfacePool: failed to create surface " + std::to_string(i),
-                         LogLevel::ERR);
+            m_logger.log("SurfacePool: failed to create surface " + std::to_string(i), LogLevel::ERR);
             return false;
         }
         m_pool.push_back(surface);
@@ -33,8 +32,7 @@ void SurfacePool::reset() {
 
 ComPtr<IDirect3DSurface9> SurfacePool::acquire() {
     std::lock_guard<std::mutex> lock(m_mutex);
-    if (m_pool.empty())
-        return nullptr;
+    if (m_pool.empty()) return nullptr;
     auto surface = m_pool.back();
     m_pool.pop_back();
     return surface;

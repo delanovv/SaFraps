@@ -10,10 +10,8 @@ bool FPSLimiter::tick() {
     auto elapsed = std::chrono::duration_cast<std::chrono::microseconds>(now - m_lastFrameTime);
     auto target  = std::chrono::duration_cast<std::chrono::microseconds>(
                        std::chrono::duration<float>(m_targetFrameTime));
-
     if (elapsed < target)
         return false;
-
     m_lastFrameTime = now;
     return true;
 }

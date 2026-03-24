@@ -2,16 +2,17 @@
 #include <audioclient.h>
 #include <mmdeviceapi.h>
 #include <combaseapi.h>
+#include <cstring>
 
 #define SAFE_RELEASE(p) if ((p)) { (p)->Release(); (p) = nullptr; }
 
-AudioCapture::AudioCapture(Logger&                           logger,
-                            std::queue<AudioFrame>&           outQueue,
-                            std::mutex&                       outMutex,
-                            std::condition_variable&          outCV,
+AudioCapture::AudioCapture(Logger&                               logger,
+                            std::queue<AudioFrame>&               outQueue,
+                            std::mutex&                           outMutex,
+                            std::condition_variable&              outCV,
                             std::chrono::steady_clock::time_point startTime,
-                            int                               sampleRate,
-                            int                               channels)
+                            int                                   sampleRate,
+                            int                                   channels)
     : m_logger(logger)
     , m_outQueue(outQueue)
     , m_outMutex(outMutex)
@@ -21,25 +22,21 @@ AudioCapture::AudioCapture(Logger&                           logger,
     , m_channels(channels)
 {}
 
-AudioCapture::~AudioCapture() {
-    stop();
-}
+AudioCapture::~AudioCapture() { stop(); }
 
 void AudioCapture::start() {
-    m_stop = false;
+    m_stop   = false;
     m_thread = std::thread(&AudioCapture::captureLoop, this);
 }
 
 void AudioCapture::stop() {
     m_stop = true;
-    if (m_thread.joinable())
-        m_thread.join();
+    if (m_thread.joinable()) m_thread.join();
 }
 
 void AudioCapture::captureLoop() {
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: CoInitializeEx failed, hr=" + std::to_string(hr), LogLevel::ERR);
+    if (FAILED(CoInitializeEx(nullptr, COINIT_MULTITHREADED))) {
+        m_logger.log("AudioCapture: CoInitializeEx failed", LogLevel::ERR);
         return;
     }
 
@@ -49,49 +46,37 @@ void AudioCapture::captureLoop() {
     IAudioCaptureClient* pCapture     = nullptr;
     WAVEFORMATEX*        pwfx         = nullptr;
 
-    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
-                          __uuidof(IMMDeviceEnumerator), reinterpret_cast<void**>(&pEnumerator));
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: CoCreateInstance failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+    HRESULT hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL,
+                                   __uuidof(IMMDeviceEnumerator),
+                                   reinterpret_cast<void**>(&pEnumerator));
+    if (FAILED(hr)) { m_logger.log("AudioCapture: CoCreateInstance failed", LogLevel::ERR); goto cleanup; }
 
     hr = pEnumerator->GetDefaultAudioEndpoint(eRender, eConsole, &pDevice);
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: GetDefaultAudioEndpoint failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+    if (FAILED(hr)) { m_logger.log("AudioCapture: GetDefaultAudioEndpoint failed", LogLevel::ERR); goto cleanup; }
 
     hr = pDevice->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr,
-                           reinterpret_cast<void**>(&pAudioClient));
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: Activate failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+                            reinterpret_cast<void**>(&pAudioClient));
+    if (FAILED(hr)) { m_logger.log("AudioCapture: Activate failed", LogLevel::ERR); goto cleanup; }
 
     hr = pAudioClient->GetMixFormat(&pwfx);
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: GetMixFormat failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+    if (FAILED(hr)) { m_logger.log("AudioCapture: GetMixFormat failed", LogLevel::ERR); goto cleanup; }
 
     {
-        bool isFloat32 = (pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT && pwfx->wBitsPerSample == 32);
-        bool isExtFloat32 = false;
+        bool isFloat = (pwfx->wFormatTag == WAVE_FORMAT_IEEE_FLOAT && pwfx->wBitsPerSample == 32);
+        bool isExtFloat = false;
         if (pwfx->wFormatTag == WAVE_FORMAT_EXTENSIBLE) {
             auto* ext = reinterpret_cast<WAVEFORMATEXTENSIBLE*>(pwfx);
-            isExtFloat32 = (ext->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT && pwfx->wBitsPerSample == 32);
+            isExtFloat = (ext->SubFormat == KSDATAFORMAT_SUBTYPE_IEEE_FLOAT && pwfx->wBitsPerSample == 32);
         }
-
-        if (!isFloat32 && !isExtFloat32) {
-            m_logger.log("AudioCapture: unsupported format (expected IEEE_FLOAT 32-bit)", LogLevel::ERR);
+        if (!isFloat && !isExtFloat) {
+            m_logger.log("AudioCapture: unsupported format, expected IEEE_FLOAT 32-bit", LogLevel::ERR);
             CoTaskMemFree(pwfx);
             goto cleanup;
         }
 
         if (m_sampleRate != 0 && m_channels != 0) {
             if (static_cast<DWORD>(m_sampleRate) != pwfx->nSamplesPerSec ||
-                static_cast<WORD>(m_channels) != pwfx->nChannels) {
+                static_cast<WORD>(m_channels)    != pwfx->nChannels) {
                 m_logger.log("AudioCapture: device format mismatch", LogLevel::ERR);
                 CoTaskMemFree(pwfx);
                 goto cleanup;
@@ -99,31 +84,19 @@ void AudioCapture::captureLoop() {
         }
     }
 
-    m_logger.log("AudioCapture: format OK " + std::to_string(pwfx->nSamplesPerSec) +
-                 "Hz " + std::to_string(pwfx->nChannels) + "ch", LogLevel::INFO);
-
     hr = pAudioClient->Initialize(AUDCLNT_SHAREMODE_SHARED, AUDCLNT_STREAMFLAGS_LOOPBACK,
                                    10000000, 0, pwfx, nullptr);
     CoTaskMemFree(pwfx);
     pwfx = nullptr;
-
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: Initialize failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+    if (FAILED(hr)) { m_logger.log("AudioCapture: Initialize failed", LogLevel::ERR); goto cleanup; }
 
     hr = pAudioClient->GetService(__uuidof(IAudioCaptureClient),
                                    reinterpret_cast<void**>(&pCapture));
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: GetService failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+    if (FAILED(hr)) { m_logger.log("AudioCapture: GetService failed", LogLevel::ERR); goto cleanup; }
 
-    hr = pAudioClient->Start();
-    if (FAILED(hr)) {
-        m_logger.log("AudioCapture: Start failed, hr=" + std::to_string(hr), LogLevel::ERR);
-        goto cleanup;
-    }
+    if (FAILED(pAudioClient->Start())) { m_logger.log("AudioCapture: Start failed", LogLevel::ERR); goto cleanup; }
+
+    m_logger.log("AudioCapture: started", LogLevel::INFO);
 
     while (!m_stop) {
         UINT32 packetLength = 0;
@@ -137,8 +110,7 @@ void AudioCapture::captureLoop() {
             UINT32 numFrames;
             DWORD  flags;
 
-            if (FAILED(pCapture->GetBuffer(&pData, &numFrames, &flags, nullptr, nullptr)))
-                break;
+            if (FAILED(pCapture->GetBuffer(&pData, &numFrames, &flags, nullptr, nullptr))) break;
 
             if (!(flags & AUDCLNT_BUFFERFLAGS_SILENT) && pData && numFrames > 0) {
                 size_t   frameSize = numFrames * static_cast<size_t>(m_channels) * sizeof(float);
@@ -160,9 +132,7 @@ void AudioCapture::captureLoop() {
             }
 
             pCapture->ReleaseBuffer(numFrames);
-
-            if (FAILED(pCapture->GetNextPacketSize(&packetLength)))
-                break;
+            if (FAILED(pCapture->GetNextPacketSize(&packetLength))) break;
         }
 
         std::this_thread::sleep_for(std::chrono::milliseconds(1));

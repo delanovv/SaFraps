@@ -1,8 +1,7 @@
 #include "VideoEncoder.h"
+#include "MemUtils.h"
 #include <libyuv.h>
-#include <future>
 #include <algorithm>
-#include <thread>
 
 VideoEncoder::VideoEncoder(Logger&                  logger,
                             std::queue<RawFrame>&    rawInQueue,
@@ -24,13 +23,19 @@ VideoEncoder::VideoEncoder(Logger&                  logger,
     , m_writeMutex(writeMutex)
     , m_width(width)
     , m_height(height)
+    , m_threadPool(std::max(1u, std::thread::hardware_concurrency()))
 {
+    size_t ySize  = static_cast<size_t>(width) * height;
+    size_t uvSize = ySize / 4;
+    m_tempY.resize(ySize);
+    m_tempU.resize(uvSize);
+    m_tempV.resize(uvSize);
+
     m_frame = av_frame_alloc();
     if (m_frame) {
         m_frame->format = AV_PIX_FMT_YUV420P;
         m_frame->width  = static_cast<int>(width);
         m_frame->height = static_cast<int>(height);
-        av_frame_get_buffer(m_frame, 0);
     }
     m_pkt = av_packet_alloc();
 }
@@ -54,44 +59,18 @@ void VideoEncoder::stop() {
         m_stopRaw = true;
     }
     m_rawInCV.notify_all();
-
-    if (m_rawThread.joinable())
-        m_rawThread.join();
+    if (m_rawThread.joinable()) m_rawThread.join();
 
     {
         std::lock_guard<std::mutex> lock(m_yuvMutex);
         m_stopEncode = true;
     }
     m_yuvCV.notify_all();
-
-    if (m_encodeThread.joinable())
-        m_encodeThread.join();
-}
-
-void VideoEncoder::parallelCopy(uint8_t* dst, const uint8_t* src, size_t size) {
-    constexpr size_t PARALLEL_THRESHOLD = 4 * 1024 * 1024;
-    int numThreads = static_cast<int>(std::thread::hardware_concurrency());
-
-    if (numThreads <= 1 || size < PARALLEL_THRESHOLD) {
-        std::memcpy(dst, src, size);
-        return;
-    }
-
-    size_t chunkSize = size / numThreads;
-    std::vector<std::future<void>> futures;
-
-    for (int i = 0; i < numThreads; ++i) {
-        size_t offset    = static_cast<size_t>(i) * chunkSize;
-        size_t thisChunk = (i == numThreads - 1) ? size - offset : chunkSize;
-        futures.push_back(std::async(std::launch::async, [=] {
-            std::memcpy(dst + offset, src + offset, thisChunk);
-        }));
-    }
-    for (auto& f : futures) f.get();
+    if (m_encodeThread.joinable()) m_encodeThread.join();
 }
 
 void VideoEncoder::rawProcessLoop() {
-    m_logger.log("VideoEncoder: raw process thread started", LogLevel::INFO);
+    m_logger.log("VideoEncoder: raw thread started", LogLevel::INFO);
 
     while (true) {
         std::unique_lock<std::mutex> lock(m_rawInMutex);
@@ -105,35 +84,31 @@ void VideoEncoder::rawProcessLoop() {
         m_rawInQueue.pop();
         lock.unlock();
 
-        size_t ySize  = m_width * m_height;
-        size_t uvSize = ySize / 4;
-
-        std::vector<uint8_t> tempY(ySize);
-        std::vector<uint8_t> tempU(uvSize);
-        std::vector<uint8_t> tempV(uvSize);
-
         int ret = libyuv::ConvertToI420(
             frame.buffer, frame.size,
-            tempY.data(), static_cast<int>(m_width),
-            tempU.data(), static_cast<int>(m_width / 2),
-            tempV.data(), static_cast<int>(m_width / 2),
+            m_tempY.data(), static_cast<int>(m_width),
+            m_tempU.data(), static_cast<int>(m_width / 2),
+            m_tempV.data(), static_cast<int>(m_width / 2),
             0, 0,
-            static_cast<int>(frame.width), static_cast<int>(frame.height),
-            static_cast<int>(m_width), static_cast<int>(m_height),
+            static_cast<int>(frame.width),  static_cast<int>(frame.height),
+            static_cast<int>(m_width),      static_cast<int>(m_height),
             libyuv::kRotate0, libyuv::FOURCC_ARGB);
 
         m_bufferPool.releaseRaw(frame.buffer);
         frame.buffer = nullptr;
 
         if (ret != 0) {
-            m_logger.log("VideoEncoder: ConvertToI420 failed, ret=" + std::to_string(ret), LogLevel::ERR);
+            m_logger.log("VideoEncoder: ConvertToI420 failed ret=" + std::to_string(ret), LogLevel::ERR);
             continue;
         }
 
+        size_t   ySize  = static_cast<size_t>(m_width) * m_height;
+        size_t   uvSize = ySize / 4;
         uint8_t* yuvBuf = m_bufferPool.acquireYuv(ySize + uvSize * 2);
-        std::memcpy(yuvBuf,                tempY.data(), ySize);
-        std::memcpy(yuvBuf + ySize,        tempU.data(), uvSize);
-        std::memcpy(yuvBuf + ySize + uvSize, tempV.data(), uvSize);
+
+        parallelNtCopy(yuvBuf,                m_tempY.data(), ySize,  m_threadPool);
+        parallelNtCopy(yuvBuf + ySize,        m_tempU.data(), uvSize, m_threadPool);
+        parallelNtCopy(yuvBuf + ySize + uvSize, m_tempV.data(), uvSize, m_threadPool);
 
         {
             std::lock_guard<std::mutex> qlock(m_yuvMutex);
@@ -146,7 +121,7 @@ void VideoEncoder::rawProcessLoop() {
         m_yuvCV.notify_one();
     }
 
-    m_logger.log("VideoEncoder: raw process thread finished", LogLevel::INFO);
+    m_logger.log("VideoEncoder: raw thread finished", LogLevel::INFO);
 }
 
 void VideoEncoder::encodeLoop() {
@@ -164,7 +139,7 @@ void VideoEncoder::encodeLoop() {
         m_yuvQueue.pop();
         lock.unlock();
 
-        size_t ySize  = m_width * m_height;
+        size_t ySize  = static_cast<size_t>(m_width) * m_height;
         size_t uvSize = ySize / 4;
 
         m_frame->data[0]     = yuvFrame.buffer;
@@ -194,13 +169,8 @@ void VideoEncoder::encodeLoop() {
             av_packet_rescale_ts(m_pkt, m_codecCtx->time_base, m_stream->time_base);
 
             std::lock_guard<std::mutex> wlock(m_writeMutex);
-            if (m_fmtCtx && m_fmtCtx->pb) {
-                ret = av_interleaved_write_frame(m_fmtCtx, m_pkt);
-                if (ret < 0) {
-                    char err[128]; av_strerror(ret, err, sizeof(err));
-                    m_logger.log("VideoEncoder: write_frame failed: " + std::string(err), LogLevel::ERR);
-                }
-            }
+            if (m_fmtCtx && m_fmtCtx->pb)
+                av_interleaved_write_frame(m_fmtCtx, m_pkt);
         }
     }
 
@@ -210,7 +180,6 @@ void VideoEncoder::encodeLoop() {
 
 void VideoEncoder::flushCodec() {
     if (!m_codecCtx) return;
-
     m_logger.log("VideoEncoder: flushing codec", LogLevel::INFO);
     avcodec_send_frame(m_codecCtx, nullptr);
 

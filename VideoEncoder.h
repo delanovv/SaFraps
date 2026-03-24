@@ -4,6 +4,7 @@
 #include <queue>
 #include <mutex>
 #include <condition_variable>
+#include <vector>
 
 extern "C" {
 #include <libavcodec/avcodec.h>
@@ -13,6 +14,7 @@ extern "C" {
 
 #include "FrameData.h"
 #include "BufferPool.h"
+#include "ThreadPool.h"
 #include "Logger.h"
 
 class VideoEncoder {
@@ -31,30 +33,33 @@ public:
     VideoEncoder(const VideoEncoder&) = delete;
     VideoEncoder& operator=(const VideoEncoder&) = delete;
 
-    void start();
-    void stop();
+    void   start();
+    void   stop();
+    std::thread::native_handle_type rawThreadHandle() { return m_rawThread.native_handle();    }
+    std::thread::native_handle_type encodeThreadHandle() { return m_encodeThread.native_handle(); }
 
 private:
     void rawProcessLoop();
     void encodeLoop();
     void flushCodec();
 
-    static void parallelCopy(uint8_t* dst, const uint8_t* src, size_t size);
-
     Logger&                  m_logger;
     std::queue<RawFrame>&    m_rawInQueue;
     std::mutex&              m_rawInMutex;
     std::condition_variable& m_rawInCV;
+    AVFormatContext*         m_fmtCtx;
+    AVCodecContext*          m_codecCtx;
+    AVStream*                m_stream;
+    std::mutex&              m_writeMutex;
+    uint32_t                 m_width;
+    uint32_t                 m_height;
 
-    AVFormatContext* m_fmtCtx;
-    AVCodecContext*  m_codecCtx;
-    AVStream*        m_stream;
-    std::mutex&      m_writeMutex;
+    BufferPool  m_bufferPool;
+    ThreadPool  m_threadPool;
 
-    uint32_t m_width;
-    uint32_t m_height;
-
-    BufferPool m_bufferPool;
+    std::vector<uint8_t> m_tempY;
+    std::vector<uint8_t> m_tempU;
+    std::vector<uint8_t> m_tempV;
 
     std::queue<YuvFrame>    m_yuvQueue;
     std::mutex              m_yuvMutex;
@@ -66,10 +71,9 @@ private:
     std::thread m_rawThread;
     std::thread m_encodeThread;
 
-    AVFrame*  m_frame = nullptr;
-    AVPacket* m_pkt   = nullptr;
-
-    int64_t m_frameCounter = 0;
+    AVFrame*  m_frame        = nullptr;
+    AVPacket* m_pkt          = nullptr;
+    int64_t   m_frameCounter = 0;
 
     static constexpr size_t MAX_QUEUE_SIZE = 100;
 };

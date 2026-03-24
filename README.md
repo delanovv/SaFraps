@@ -39,23 +39,23 @@ DLL-мод для **GTA San Andreas + SA-MP 0.3.7**, который записы
 
 ### 🚀 Возможности
 
-| Модуль | Описание |
-|--------|----------|
-| 🎮 **Захват D3D9** | Хук `IDirect3DDevice9::Present` — кадры снимаются прямо с бэкбуфера без стороннего ПО |
-| 🎞 **Видеокодеки** | x264, x265 (программные) и NVENC (аппаратный GPU-кодировщик NVIDIA) |
-| 🔊 **Захват аудио** | Опциональная запись системного звука через WASAPI с настройкой частоты и каналов |
-| 🖥 **ImGui-оверлей** | Встроенный интерфейс с тёмной темой (electric indigo), открывается по `/fraps` |
-| ⚙️ **Гибкая настройка** | CRF (0–51), FPS (10–240), пресеты x264 p1–p7, разрешение, путь к файлу |
-| 📝 **Логирование** | Потокобезопасный файловый логгер с уровнями INFO / DEBUG / ERR |
-| 🔁 **Многопоточность** | Захват, конвертация YUV и кодирование работают в отдельных потоках с ограниченными очередями |
-| 🎯 **Поддержка R1 и R3** | Работает с обоими лэйаутами SAMP классов (0.3.7 R1 и R3) |
+| Модуль                   | Описание                                                                                     |
+| ------------------------ | -------------------------------------------------------------------------------------------- |
+| 🎮 **Захват D3D9**       | Хук `IDirect3DDevice9::Present` — кадры снимаются прямо с бэкбуфера без стороннего ПО        |
+| 🎞 **Видеокодеки**       | x264, x265 (программные) и NVENC (аппаратный GPU-кодировщик NVIDIA)                          |
+| 🔊 **Захват аудио**      | Опциональная запись системного звука через WASAPI с настройкой частоты и каналов             |
+| 🖥 **ImGui-оверлей**     | Встроенный интерфейс с тёмной темой (electric indigo), открывается по `/fraps`               |
+| ⚙️ **Гибкая настройка**  | CRF (0–51), FPS (10–240), пресеты x264 p1–p7, разрешение, путь к файлу                       |
+| 📝 **Логирование**       | Потокобезопасный файловый логгер с уровнями INFO / DEBUG / ERR                               |
+| 🔁 **Многопоточность**   | Захват, конвертация YUV и кодирование работают в отдельных потоках с ограниченными очередями |
+| 🎯 **Поддержка R1 и R3** | Работает с обоими лэйаутами SAMP классов (0.3.7 R1 и R3)                                     |
 
 ---
 
 ### ⚙️ Как это работает
 
 ```
-GTA SA + SA-MP
+GTA SA + SA-MPgit checkout main
     │
     │  DLL-инъекция в gta_sa.exe (x86)
     ▼
@@ -75,24 +75,24 @@ GrandFraps (fraps.dll)
 
 ### 📦 Зависимости
 
-| Библиотека | Назначение |
-|------------|------------|
+| Библиотека                                              | Назначение                                    |
+| ------------------------------------------------------- | --------------------------------------------- |
 | FFmpeg (avcodec, avformat, avutil, swresample, swscale) | Кодирование и мультиплексирование видео/аудио |
-| libx264 | Программный кодировщик H.264 |
-| x265 | Программный кодировщик H.265 |
-| NVENC / nvcuvid | Аппаратный кодировщик NVIDIA |
-| Intel Media SDK (libmfx) | Аппаратный кодировщик Intel |
-| OpenCL | GPU-конвертация пикселей |
-| DirectX 9 SDK (June 2010) | Захват бэкбуфера D3D9 |
-| ImGui | Оверлей-интерфейс |
-| zlib, bzip2, lzma, snappy | Утилиты сжатия |
-| libssl / libcrypto (OpenSSL) | Криптография (RakNet) |
-| opus | Аудиокодек |
-| libxml2 | XML-утилиты |
-| CUDA Toolkit 12.x | Заголовки NVENC/CUVID |
-| plugin-sdk | Определения типов GTA SA / SA-MP |
-| kthook | Движок x86 inline-хуков |
-| memwrapper | Утилиты патчинга памяти |
+| libx264                                                 | Программный кодировщик H.264                  |
+| x265                                                    | Программный кодировщик H.265                  |
+| NVENC / nvcuvid                                         | Аппаратный кодировщик NVIDIA                  |
+| Intel Media SDK (libmfx)                                | Аппаратный кодировщик Intel                   |
+| OpenCL                                                  | GPU-конвертация пикселей                      |
+| DirectX 9 SDK (June 2010)                               | Захват бэкбуфера D3D9                         |
+| ImGui                                                   | Оверлей-интерфейс                             |
+| zlib, bzip2, lzma, snappy                               | Утилиты сжатия                                |
+| libssl / libcrypto (OpenSSL)                            | Криптография (RakNet)                         |
+| opus                                                    | Аудиокодек                                    |
+| libxml2                                                 | XML-утилиты                                   |
+| CUDA Toolkit 12.x                                       | Заголовки NVENC/CUVID                         |
+| plugin-sdk                                              | Определения типов GTA SA / SA-MP              |
+| kthook                                                  | Движок x86 inline-хуков                       |
+| memwrapper                                              | Утилиты патчинга памяти                       |
 
 ---
 
@@ -129,10 +129,6 @@ cmake --build build --config Release
 
 Результат: `build/Release/fraps.dll`
 
-#### Legacy (Visual Studio)
-
-Можно открыть `SAMP_API_ONE_HEADER.vcxproj` напрямую в VS 2022. Перед сборкой нужно исправить хардкодные пути к SDK в файле проекта.
-
 ---
 
 ### 📥 Установка
@@ -158,16 +154,16 @@ cmake --build build --config Release
 
 **Параметры по умолчанию:**
 
-| Параметр | Значение |
-|----------|----------|
-| Путь | `GrandFraps/video.mp4` |
-| Разрешение | 1920 × 1080 |
-| FPS | 60 |
-| CRF | 15 |
-| Пресет | `p4` |
-| Аудио | выключено |
-| Частота дискретизации | 44 100 Гц |
-| Каналов | 2 (стерео) |
+| Параметр              | Значение               |
+| --------------------- | ---------------------- |
+| Путь                  | `GrandFraps/video.mp4` |
+| Разрешение            | 1920 × 1080            |
+| FPS                   | 60                     |
+| CRF                   | 15                     |
+| Пресет                | `p4`                   |
+| Аудио                 | выключено              |
+| Частота дискретизации | 44 100 Гц              |
+| Каналов               | 2 (стерео)             |
 
 ---
 
@@ -194,6 +190,7 @@ cmake --build build --config Release
 ```
 
 ---
+
 ---
 
 ## 🇬🇧 English
@@ -214,16 +211,16 @@ A DLL mod for **GTA San Andreas + SA-MP 0.3.7** that records gameplay to MP4 dir
 
 ### 🚀 Features
 
-| Module | Description |
-|--------|-------------|
-| 🎮 **D3D9 Capture** | Hook on `IDirect3DDevice9::Present` — frames taken directly from the back buffer |
-| 🎞 **Video Codecs** | x264, x265 (software) and NVENC (NVIDIA GPU hardware encoder) |
-| 🔊 **Audio Capture** | Optional system audio recording via WASAPI with configurable sample rate and channels |
-| 🖥 **ImGui Overlay** | Built-in dark-themed UI (electric indigo accent), toggled with `/fraps` |
-| ⚙️ **Flexible Settings** | CRF (0–51), FPS (10–240), x264 presets p1–p7, resolution, output path |
-| 📝 **Logging** | Thread-safe file logger with INFO / DEBUG / ERR levels |
-| 🔁 **Multithreading** | Capture, YUV conversion and encoding run on dedicated threads with bounded queues |
-| 🎯 **R1 & R3 Support** | Works with both SAMP class layouts (0.3.7 R1 and R3) |
+| Module                   | Description                                                                           |
+| ------------------------ | ------------------------------------------------------------------------------------- |
+| 🎮 **D3D9 Capture**      | Hook on `IDirect3DDevice9::Present` — frames taken directly from the back buffer      |
+| 🎞 **Video Codecs**      | x264, x265 (software) and NVENC (NVIDIA GPU hardware encoder)                         |
+| 🔊 **Audio Capture**     | Optional system audio recording via WASAPI with configurable sample rate and channels |
+| 🖥 **ImGui Overlay**     | Built-in dark-themed UI (electric indigo accent), toggled with `/fraps`               |
+| ⚙️ **Flexible Settings** | CRF (0–51), FPS (10–240), x264 presets p1–p7, resolution, output path                 |
+| 📝 **Logging**           | Thread-safe file logger with INFO / DEBUG / ERR levels                                |
+| 🔁 **Multithreading**    | Capture, YUV conversion and encoding run on dedicated threads with bounded queues     |
+| 🎯 **R1 & R3 Support**   | Works with both SAMP class layouts (0.3.7 R1 and R3)                                  |
 
 ---
 
@@ -250,24 +247,24 @@ GrandFraps (fraps.dll)
 
 ### 📦 Dependencies
 
-| Library | Purpose |
-|---------|---------|
-| FFmpeg (avcodec, avformat, avutil, swresample, swscale) | Video/audio encoding and muxing |
-| libx264 | H.264 software encoder |
-| x265 | H.265 software encoder |
-| NVENC / nvcuvid | NVIDIA hardware encoder |
-| Intel Media SDK (libmfx) | Intel hardware encoder |
-| OpenCL | GPU-accelerated pixel conversion |
-| DirectX 9 SDK (June 2010) | D3D9 back-buffer capture |
-| ImGui | In-game overlay UI |
-| zlib, bzip2, lzma, snappy | Compression utilities |
-| libssl / libcrypto (OpenSSL) | Crypto (RakNet) |
-| opus | Audio codec |
-| libxml2 | XML utilities |
-| CUDA Toolkit 12.x | NVENC/CUVID headers |
-| plugin-sdk | GTA SA / SAMP type definitions |
-| kthook | x86 inline hook engine |
-| memwrapper | Memory patch helpers |
+| Library                                                 | Purpose                          |
+| ------------------------------------------------------- | -------------------------------- |
+| FFmpeg (avcodec, avformat, avutil, swresample, swscale) | Video/audio encoding and muxing  |
+| libx264                                                 | H.264 software encoder           |
+| x265                                                    | H.265 software encoder           |
+| NVENC / nvcuvid                                         | NVIDIA hardware encoder          |
+| Intel Media SDK (libmfx)                                | Intel hardware encoder           |
+| OpenCL                                                  | GPU-accelerated pixel conversion |
+| DirectX 9 SDK (June 2010)                               | D3D9 back-buffer capture         |
+| ImGui                                                   | In-game overlay UI               |
+| zlib, bzip2, lzma, snappy                               | Compression utilities            |
+| libssl / libcrypto (OpenSSL)                            | Crypto (RakNet)                  |
+| opus                                                    | Audio codec                      |
+| libxml2                                                 | XML utilities                    |
+| CUDA Toolkit 12.x                                       | NVENC/CUVID headers              |
+| plugin-sdk                                              | GTA SA / SAMP type definitions   |
+| kthook                                                  | x86 inline hook engine           |
+| memwrapper                                              | Memory patch helpers             |
 
 ---
 
@@ -304,10 +301,6 @@ cmake --build build --config Release
 
 Output: `build/Release/fraps.dll`
 
-#### Legacy (Visual Studio)
-
-You can open `SAMP_API_ONE_HEADER.vcxproj` directly in VS 2022. Before building, fix the hardcoded SDK paths inside the project file.
-
 ---
 
 ### 📥 Installation
@@ -333,16 +326,16 @@ You can open `SAMP_API_ONE_HEADER.vcxproj` directly in VS 2022. Before building,
 
 **Default configuration:**
 
-| Parameter | Value |
-|-----------|-------|
+| Parameter   | Value                  |
+| ----------- | ---------------------- |
 | Output path | `GrandFraps/video.mp4` |
-| Resolution | 1920 × 1080 |
-| FPS | 60 |
-| CRF | 15 |
-| Preset | `p4` |
-| Audio | disabled |
-| Sample rate | 44 100 Hz |
-| Channels | 2 (stereo) |
+| Resolution  | 1920 × 1080            |
+| FPS         | 60                     |
+| CRF         | 15                     |
+| Preset      | `p4`                   |
+| Audio       | disabled               |
+| Sample rate | 44 100 Hz              |
+| Channels    | 2 (stereo)             |
 
 ---
 
@@ -369,6 +362,7 @@ You can open `SAMP_API_ONE_HEADER.vcxproj` directly in VS 2022. Before building,
 ```
 
 ---
+
 ---
 
 ## 🇩🇪 Deutsch
@@ -389,16 +383,16 @@ Ein DLL-Mod für **GTA San Andreas + SA-MP 0.3.7**, der Gameplay direkt aus dem 
 
 ### 🚀 Funktionen
 
-| Modul | Beschreibung |
-|-------|--------------|
-| 🎮 **D3D9-Capture** | Hook auf `IDirect3DDevice9::Present` — Frames direkt vom Back Buffer |
-| 🎞 **Video-Codecs** | x264, x265 (Software) und NVENC (NVIDIA GPU Hardware-Encoder) |
-| 🔊 **Audio-Capture** | Optionale Systemton-Aufnahme via WASAPI mit konfigurierbarer Samplerate und Kanälen |
-| 🖥 **ImGui-Overlay** | Eingebaute dunkle UI (Electric-Indigo-Akzent), aktiviert mit `/fraps` |
-| ⚙️ **Flexible Einstellungen** | CRF (0–51), FPS (10–240), x264-Presets p1–p7, Auflösung, Ausgabepfad |
-| 📝 **Logging** | Thread-sicherer Datei-Logger mit INFO / DEBUG / ERR Stufen |
-| 🔁 **Multithreading** | Capture, YUV-Konvertierung und Kodierung laufen in dedizierten Threads mit begrenzten Queues |
-| 🎯 **R1 & R3 Support** | Kompatibel mit beiden SAMP-Class-Layouts (0.3.7 R1 und R3) |
+| Modul                         | Beschreibung                                                                                 |
+| ----------------------------- | -------------------------------------------------------------------------------------------- |
+| 🎮 **D3D9-Capture**           | Hook auf `IDirect3DDevice9::Present` — Frames direkt vom Back Buffer                         |
+| 🎞 **Video-Codecs**           | x264, x265 (Software) und NVENC (NVIDIA GPU Hardware-Encoder)                                |
+| 🔊 **Audio-Capture**          | Optionale Systemton-Aufnahme via WASAPI mit konfigurierbarer Samplerate und Kanälen          |
+| 🖥 **ImGui-Overlay**          | Eingebaute dunkle UI (Electric-Indigo-Akzent), aktiviert mit `/fraps`                        |
+| ⚙️ **Flexible Einstellungen** | CRF (0–51), FPS (10–240), x264-Presets p1–p7, Auflösung, Ausgabepfad                         |
+| 📝 **Logging**                | Thread-sicherer Datei-Logger mit INFO / DEBUG / ERR Stufen                                   |
+| 🔁 **Multithreading**         | Capture, YUV-Konvertierung und Kodierung laufen in dedizierten Threads mit begrenzten Queues |
+| 🎯 **R1 & R3 Support**        | Kompatibel mit beiden SAMP-Class-Layouts (0.3.7 R1 und R3)                                   |
 
 ---
 
@@ -425,24 +419,24 @@ GrandFraps (fraps.dll)
 
 ### 📦 Abhängigkeiten
 
-| Bibliothek | Zweck |
-|------------|-------|
-| FFmpeg (avcodec, avformat, avutil, swresample, swscale) | Video/Audio-Kodierung und Muxing |
-| libx264 | H.264 Software-Encoder |
-| x265 | H.265 Software-Encoder |
-| NVENC / nvcuvid | NVIDIA Hardware-Encoder |
-| Intel Media SDK (libmfx) | Intel Hardware-Encoder |
-| OpenCL | GPU-beschleunigte Pixelkonvertierung |
-| DirectX 9 SDK (June 2010) | D3D9 Back-Buffer-Capture |
-| ImGui | In-Game Overlay-UI |
-| zlib, bzip2, lzma, snappy | Kompressionsutilities |
-| libssl / libcrypto (OpenSSL) | Kryptographie (RakNet) |
-| opus | Audio-Codec |
-| libxml2 | XML-Utilities |
-| CUDA Toolkit 12.x | NVENC/CUVID-Header |
-| plugin-sdk | GTA SA / SAMP Typdefinitionen |
-| kthook | x86 Inline-Hook-Engine |
-| memwrapper | Memory-Patch-Helfer |
+| Bibliothek                                              | Zweck                                |
+| ------------------------------------------------------- | ------------------------------------ |
+| FFmpeg (avcodec, avformat, avutil, swresample, swscale) | Video/Audio-Kodierung und Muxing     |
+| libx264                                                 | H.264 Software-Encoder               |
+| x265                                                    | H.265 Software-Encoder               |
+| NVENC / nvcuvid                                         | NVIDIA Hardware-Encoder              |
+| Intel Media SDK (libmfx)                                | Intel Hardware-Encoder               |
+| OpenCL                                                  | GPU-beschleunigte Pixelkonvertierung |
+| DirectX 9 SDK (June 2010)                               | D3D9 Back-Buffer-Capture             |
+| ImGui                                                   | In-Game Overlay-UI                   |
+| zlib, bzip2, lzma, snappy                               | Kompressionsutilities                |
+| libssl / libcrypto (OpenSSL)                            | Kryptographie (RakNet)               |
+| opus                                                    | Audio-Codec                          |
+| libxml2                                                 | XML-Utilities                        |
+| CUDA Toolkit 12.x                                       | NVENC/CUVID-Header                   |
+| plugin-sdk                                              | GTA SA / SAMP Typdefinitionen        |
+| kthook                                                  | x86 Inline-Hook-Engine               |
+| memwrapper                                              | Memory-Patch-Helfer                  |
 
 ---
 
@@ -479,12 +473,6 @@ cmake --build build --config Release
 
 Ausgabe: `build/Release/fraps.dll`
 
-#### Legacy (Visual Studio)
-
-`SAMP_API_ONE_HEADER.vcxproj` kann direkt in VS 2022 geöffnet werden. Vor dem Build müssen die hartkodierten SDK-Pfade im Projektfile angepasst werden.
-
----
-
 ### 📥 Installation
 
 1. `fraps.dll` kompilieren oder herunterladen.
@@ -508,16 +496,16 @@ Ausgabe: `build/Release/fraps.dll`
 
 **Standardkonfiguration:**
 
-| Parameter | Wert |
-|-----------|------|
+| Parameter   | Wert                   |
+| ----------- | ---------------------- |
 | Ausgabepfad | `GrandFraps/video.mp4` |
-| Auflösung | 1920 × 1080 |
-| FPS | 60 |
-| CRF | 15 |
-| Preset | `p4` |
-| Audio | deaktiviert |
-| Samplerate | 44 100 Hz |
-| Kanäle | 2 (Stereo) |
+| Auflösung   | 1920 × 1080            |
+| FPS         | 60                     |
+| CRF         | 15                     |
+| Preset      | `p4`                   |
+| Audio       | deaktiviert            |
+| Samplerate  | 44 100 Hz              |
+| Kanäle      | 2 (Stereo)             |
 
 ---
 

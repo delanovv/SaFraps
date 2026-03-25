@@ -23,7 +23,7 @@
 
 ## 🇷🇺 Русский
 
-DLL-мод для **GTA San Andreas + SA-MP 0.3.7**, который записывает геймплей в MP4 прямо изнутри игрового процесса. Никаких сторонних программ захвата — рекордер хукает D3D9, захватывает кадры из бэкбуфера, кодирует через FFmpeg (libx264 / libx265 / NVENC) и пишет результат на диск. Встроенный **ImGui-оверлей** управляется через чат-команду `/fraps`.
+ASI-плагин для **GTA San Andreas + SA-MP 0.3.7**, который записывает геймплей в MP4 прямо изнутри игрового процесса. Никаких сторонних программ захвата — рекордер хукает D3D9, захватывает кадры из бэкбуфера, кодирует через FFmpeg (libx264 / libx265 / NVENC) и пишет результат на диск. Встроенный **ImGui-оверлей** управляется через чат-команду `/fraps`.
 
 ### 📋 Содержание
 
@@ -59,7 +59,7 @@ GTA SA + SA-MP
     │
     │  DLL-инъекция в gta_sa.exe (x86)
     ▼
-GrandFraps (fraps.dll)
+GrandFraps (fraps.asi)
     │
     ├── SAMP::Init()                    ← регистрация коллбэков
     ├── D3DPresentHook()                ← рендер ImGui + захват кадра в очередь
@@ -127,7 +127,7 @@ cmake -B build -G "Visual Studio 17 2022" -A Win32 ^
 cmake --build build --config Release
 ```
 
-Результат: `build/Release/fraps.dll`
+Результат: `build/Release/fraps.asi`
 
 #### Legacy (Visual Studio)
 
@@ -137,9 +137,8 @@ cmake --build build --config Release
 
 ### 📥 Установка
 
-1. Собери или скачай `fraps.dll`.
-2. Положи DLL в любое удобное место.
-3. Инжектируй её в `gta_sa.exe` **после того, как SA-MP загрузился** — подойдёт любой DLL-инжектор (Xenos, LoadLibrary-инжектор и т.д.).
+1. Собери или скачай `fraps.asi`.
+2. Положи ASI в папку с игрой.
 4. После загрузки в чате появится сообщение:
 
    ```
@@ -198,7 +197,7 @@ cmake --build build --config Release
 
 ## 🇬🇧 English
 
-A DLL mod for **GTA San Andreas + SA-MP 0.3.7** that records gameplay to MP4 directly from inside the game process. No external capture software needed — the recorder hooks D3D9, grabs frames from the back buffer, encodes them via FFmpeg (libx264 / libx265 / NVENC) and writes the result to disk. A built-in **ImGui overlay** is controlled via the `/fraps` chat command.
+A ASI-Plugin for **GTA San Andreas + SA-MP 0.3.7** that records gameplay to MP4 directly from inside the game process. No external capture software needed — the recorder hooks D3D9, grabs frames from the back buffer, encodes them via FFmpeg (libx264 / libx265 / NVENC) and writes the result to disk. A built-in **ImGui overlay** is controlled via the `/fraps` chat command.
 
 ### 📋 Table of Contents
 
@@ -234,7 +233,7 @@ GTA SA + SA-MP
     │
     │  DLL injection into gta_sa.exe (x86)
     ▼
-GrandFraps (fraps.dll)
+GrandFraps (fraps.asi)
     │
     ├── SAMP::Init()                    ← register callbacks
     ├── D3DPresentHook()                ← render ImGui + push frame to queue
@@ -302,7 +301,7 @@ cmake -B build -G "Visual Studio 17 2022" -A Win32 ^
 cmake --build build --config Release
 ```
 
-Output: `build/Release/fraps.dll`
+Output: `build/Release/fraps.asi`
 
 #### Legacy (Visual Studio)
 
@@ -312,9 +311,8 @@ You can open `SAMP_API_ONE_HEADER.vcxproj` directly in VS 2022. Before building,
 
 ### 📥 Installation
 
-1. Build or download `fraps.dll`.
-2. Place the DLL anywhere on your machine.
-3. Inject it into `gta_sa.exe` **after SA-MP has loaded** — use any DLL injector (Xenos, LoadLibrary injector, etc.).
+1. Build or download `fraps.asi`.
+2. Place the plugin into your game directory.
 4. Once loaded, a chat message will appear:
 
    ```
